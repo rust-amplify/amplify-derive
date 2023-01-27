@@ -62,6 +62,14 @@ macro_rules! ident {
     };
 }
 
+/// Convenience macro for constructing [`struct@syn::Path`] from literals
+#[macro_export]
+macro_rules! path {
+    ($ident:ident) => {
+        ::syn::Path::from(ident!($ident))
+    };
+}
+
 #[cfg(test)]
 mod test {
     use proc_macro2::Span;
