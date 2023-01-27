@@ -402,6 +402,20 @@ impl ParametrizedAttr {
             .and_then(|a| a.clone().try_into())
     }
 
+    /// Returns value for a given argument with name `name`, if it is defined,
+    /// or panics otherwise with `expect` message.
+    pub fn expect_arg_value<T>(&self, name: &str, expect: &'static str) -> T
+        where T: TryFrom<ArgValue, Error = Error> {
+        self.args
+            .get(name)
+            .ok_or(Error::ArgRequired {
+                attr: self.name.clone(),
+                arg: name.to_owned(),
+            })
+            .and_then(|a| a.clone().try_into())
+            .expect(expect)
+    }
+
     /// Returns literal value for a given argument with name `name`, if it is
     /// defined, or fails with [`Error::ArgValueRequired`]. See
     /// [`ArgValue::literal_value`] for the details.
