@@ -116,6 +116,11 @@ impl ArgValueReq {
         }
     }
 
+    /// Construct [`ArgValueReq::Optional`] variant
+    pub fn optional(class: impl Into<ValueClass>) -> ArgValueReq {
+        ArgValueReq::Optional(class.into())
+    }
+
     /// Returns value class requirements, if any
     pub fn value_class(&self) -> Option<ValueClass> {
         match self {
