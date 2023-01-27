@@ -389,6 +389,19 @@ impl ParametrizedAttr {
         ParametrizedAttr::new(name).fused(attr)
     }
 
+    /// Returns value for a given argument with name `name`, if it is defined,
+    /// or fails with [`Error::ArgValueRequired`].
+    pub fn arg_value<T>(&self, name: &str) -> Result<T, Error>
+    where T: TryFrom<ArgValue, Error = Error> {
+        self.args
+            .get(name)
+            .ok_or(Error::ArgRequired {
+                attr: self.name.clone(),
+                arg: name.to_owned(),
+            })
+            .and_then(|a| a.clone().try_into())
+    }
+
     /// Returns literal value for a given argument with name `name`, if it is
     /// defined, or fails with [`Error::ArgValueRequired`]. See
     /// [`ArgValue::literal_value`] for the details.
