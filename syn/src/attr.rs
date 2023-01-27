@@ -405,6 +405,7 @@ impl ParametrizedAttr {
     /// Returns literal value for a given argument with name `name`, if it is
     /// defined, or fails with [`Error::ArgValueRequired`]. See
     /// [`ArgValue::literal_value`] for the details.
+    #[deprecated(note = "use ArgValue::arg_value")]
     pub fn arg_literal_value(&self, name: &str) -> Result<Lit, Error> {
         self.args
             .get(name)
