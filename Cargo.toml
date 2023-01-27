@@ -29,3 +29,4 @@ amplify_syn = { version = "1.1", path = "syn" }
 
 [dev-dependencies]
 amplify = { version = "4.0.0-beta.7" }
+wasm-bindgen-test = "0.3"
