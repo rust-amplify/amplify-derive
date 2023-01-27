@@ -13,16 +13,17 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::fmt::{Debug, Formatter, self};
 use std::collections::{HashMap, HashSet};
-use syn::{
-    Type, Path, Attribute, Meta, MetaNameValue, Lit, LitInt, LitStr, LitByteStr, LitFloat, LitChar,
-    LitBool,
-};
-use syn::parse_quote::ParseQuote;
-use syn::parse::Parser;
+use std::fmt::{self, Debug, Formatter};
 
-use crate::{Error, ArgValue, ArgValueReq, AttrReq, MetaArg, MetaArgNameValue, MetaArgList};
+use syn::parse::Parser;
+use syn::parse_quote::ParseQuote;
+use syn::{
+    Attribute, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Meta, MetaNameValue,
+    Path, Type,
+};
+
+use crate::{ArgValue, ArgValueReq, AttrReq, Error, MetaArg, MetaArgList, MetaArgNameValue};
 
 /// Internal structure representation of a proc macro attribute collected
 /// instances having some specific name (accessible via [`Attr::name()`]).
@@ -191,17 +192,13 @@ impl Attr {
     /// [`Error::ParametrizedAttrHasNoValue`]. See [`ArgValue::literal_value`]
     /// for more details.
     #[inline]
-    pub fn literal_value(&self) -> Result<Lit, Error> {
-        self.arg_value()?.literal_value()
-    }
+    pub fn literal_value(&self) -> Result<Lit, Error> { self.arg_value()?.literal_value() }
 
     /// Returns type value for the [`Attr::Singular`] variant or fails with
     /// [`Error::ParametrizedAttrHasNoValue`]. See [`ArgValue::literal_value`]
     /// for more details.
     #[inline]
-    pub fn type_value(&self) -> Result<Type, Error> {
-        self.arg_value()?.type_value()
-    }
+    pub fn type_value(&self) -> Result<Type, Error> { self.arg_value()?.type_value() }
 }
 
 impl SingularAttr {
@@ -278,16 +275,12 @@ impl SingularAttr {
     /// [`Error::ArgValueRequired`]. See [`ArgValue::literal_value`] for the
     /// details.
     #[inline]
-    pub fn literal_value(&self) -> Result<Lit, Error> {
-        self.value.literal_value()
-    }
+    pub fn literal_value(&self) -> Result<Lit, Error> { self.value.literal_value() }
 
     /// Returns type value, if any, or fails with [`Error::ArgValueRequired`].
     /// See [`ArgValue::literal_value`] for the details.
     #[inline]
-    pub fn type_value(&self) -> Result<Type, Error> {
-        self.value.type_value()
-    }
+    pub fn type_value(&self) -> Result<Type, Error> { self.value.type_value() }
 
     /// Merges data from the `other` into the self.
     ///
@@ -557,7 +550,7 @@ impl ParametrizedAttr {
 
                 // `#[ident(true, ...)]`
                 MetaArg::Literal(Lit::Bool(_)) if self.bool.is_some() => {
-                    return Err(Error::MultipleLiteralValues(self.name.clone()))
+                    return Err(Error::MultipleLiteralValues(self.name.clone()));
                 }
                 MetaArg::Literal(Lit::Bool(ref lit)) if self.bool.is_none() => {
                     self.bool = Some(lit.clone())
@@ -687,8 +680,7 @@ pub trait ExtractAttr {
 }
 
 impl<'a, T> ExtractAttr for T
-where
-    T: IntoIterator<Item = &'a Attribute>,
+where T: IntoIterator<Item = &'a Attribute>
 {
     /// Returns a [`SingularAttr`] which structure must fulfill the provided
     /// requirements - or fails with a [`Error`] otherwise. For more information

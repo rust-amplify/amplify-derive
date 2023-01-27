@@ -15,9 +15,9 @@
 
 #![allow(dead_code)]
 
-use syn::{DeriveInput, Lit, Result, Meta, Ident, Attribute, NestedMeta, Path, MetaNameValue};
 use syn::punctuated::IntoIter;
 use syn::spanned::Spanned;
+use syn::{Attribute, DeriveInput, Ident, Lit, Meta, MetaNameValue, NestedMeta, Path, Result};
 
 /// Macro producing `Result::Err` with [`syn::Error`] containing span
 /// information from `$attr` (first) argument and formatted string describing
@@ -34,10 +34,7 @@ macro_rules! attr_err {
     ($attr:expr, $name:expr, $msg:tt, $example:tt) => {
         ::syn::Error::new(
             $attr.span(),
-            format!(
-                "Attribute `#[{}]`: {}\nExample use: {}",
-                $name, $msg, $example
-            ),
+            format!("Attribute `#[{}]`: {}\nExample use: {}", $name, $msg, $example),
         )
     };
 }
@@ -67,7 +64,7 @@ pub fn attr_list<'a>(
             match attr.parse_meta() {
                 Ok(meta) => match meta {
                     Meta::Path(_) => {
-                        return Err(attr_err!(ident, "unexpected path argument", example))
+                        return Err(attr_err!(ident, "unexpected path argument", example));
                     }
                     Meta::List(list) => return Ok(Some(list.nested.into_iter())),
                     Meta::NameValue(_) => {
@@ -75,7 +72,7 @@ pub fn attr_list<'a>(
                             ident,
                             "unexpected `name=\"value\"` argument",
                             example
-                        ))
+                        ));
                     }
                 },
                 Err(_) => return Err(attr_err!(ident, "wrong format", example)),
@@ -96,14 +93,14 @@ pub fn attr_named_value<'a>(
             match attr.parse_meta() {
                 Ok(meta) => match meta {
                     Meta::Path(_) => {
-                        return Err(attr_err!(ident, "unexpected path argument", example))
+                        return Err(attr_err!(ident, "unexpected path argument", example));
                     }
                     Meta::List(_) => {
                         return Err(attr_err!(
                             ident,
                             "must have form `name=\"value\"`, not `name(value)`",
                             example
-                        ))
+                        ));
                     }
                     Meta::NameValue(name_val) => return Ok(Some(name_val.lit)),
                 },
@@ -121,11 +118,7 @@ pub fn nested_one_meta(
     example: &str,
 ) -> Result<Option<Meta>> {
     match list.len() {
-        0 => Err(attr_err!(
-            attr_name,
-            "unexpected absence of argument",
-            example
-        )),
+        0 => Err(attr_err!(attr_name, "unexpected absence of argument", example)),
         1 => match list
             .clone()
             .peekable()
@@ -133,17 +126,11 @@ pub fn nested_one_meta(
             .expect("Core library iterator is broken")
         {
             NestedMeta::Meta(meta) => Ok(Some(meta.clone())),
-            NestedMeta::Lit(_) => Err(attr_err!(
-                attr_name,
-                "unexpected literal for type identifier is met",
-                example
-            )),
+            NestedMeta::Lit(_) => {
+                Err(attr_err!(attr_name, "unexpected literal for type identifier is met", example))
+            }
         },
-        _ => Err(attr_err!(
-            attr_name,
-            "unexpected multiple type identifiers",
-            example
-        )),
+        _ => Err(attr_err!(attr_name, "unexpected multiple type identifiers", example)),
     }
 }
 

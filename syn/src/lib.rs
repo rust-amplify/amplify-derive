@@ -47,12 +47,12 @@ mod parsers;
 mod req;
 mod val;
 
+pub use attr::{Attr, ExtractAttr, ParametrizedAttr, SingularAttr};
+pub use cls::{LiteralClass, TypeClass, ValueClass};
 pub use error::Error;
-pub use attr::{Attr, SingularAttr, ParametrizedAttr, ExtractAttr};
-pub use cls::{LiteralClass, ValueClass, TypeClass};
-pub use req::{ValueReq, ListReq, AttrReq, ArgValueReq};
+pub use parsers::{MetaArg, MetaArgList, MetaArgNameValue};
+pub use req::{ArgValueReq, AttrReq, ListReq, ValueReq};
 pub use val::ArgValue;
-pub use parsers::{MetaArgList, MetaArg, MetaArgNameValue};
 
 /// Convenience macro for constructing [`struct@syn::Ident`] from literals
 #[macro_export]
@@ -64,8 +64,8 @@ macro_rules! ident {
 
 #[cfg(test)]
 mod test {
-    use syn::Ident;
     use proc_macro2::Span;
+    use syn::Ident;
 
     #[test]
     fn ident() {

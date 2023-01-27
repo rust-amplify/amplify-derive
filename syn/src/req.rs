@@ -13,12 +13,13 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::convert::TryInto;
-use syn::{Path, LitChar, LitInt, LitFloat};
-use quote::ToTokens;
 
-use crate::{Error, ValueClass, ArgValue};
+use quote::ToTokens;
+use syn::{LitChar, LitFloat, LitInt, Path};
+
+use crate::{ArgValue, Error, ValueClass};
 
 /// Structure requirements for parametrized attribute
 #[derive(Clone)]
@@ -158,14 +159,14 @@ impl ArgValueReq {
                 return Err(Error::ArgValueRequired {
                     attr: attr.to_string(),
                     arg: arg.to_string(),
-                })
+                });
             }
 
             (ref val, ArgValueReq::Prohibited) if val.is_some() => {
                 return Err(Error::ArgMustNotHaveValue {
                     attr: attr.to_string(),
                     arg: arg.to_string(),
-                })
+                });
             }
 
             (
@@ -175,7 +176,8 @@ impl ArgValueReq {
                 },
             ) if val.value_class() != d.value_class() && val.value_class().is_some() => {
                 panic!(
-                    "Default value class {:?} does not match argument value class {:?} for attribute {}, argument {}",
+                    "Default value class {:?} does not match argument value class {:?} for \
+                     attribute {}, argument {}",
                     d.value_class(),
                     val.value_class(),
                     attr.to_string(),
@@ -272,8 +274,7 @@ impl ValueReq {
 /// providing [`crate::ParametrizedAttr`] fields requirements.
 #[derive(Clone)]
 pub enum ListReq<T>
-where
-    T: Clone,
+where T: Clone
 {
     /// Only a single value allowed and it must be present
     Single {
@@ -324,8 +325,7 @@ where
 }
 
 impl<T> ListReq<T>
-where
-    T: Clone + ToTokens,
+where T: Clone + ToTokens
 {
     /// Checks the value against the list requirements, generating [`Error`] if
     /// the requirements are not met.
@@ -341,16 +341,16 @@ where
                 return Err(Error::ArgTypeProhibited {
                     attr: attr.to_string(),
                     arg: arg.to_string(),
-                })
+                });
             }
 
             // Checking are we required to have a value while no value is available
-            (ListReq::Many { required: true, .. }, 0)
-            | (ListReq::Single { default: None, .. }, 0) => {
+            (ListReq::Many { required: true, .. }, 0) |
+            (ListReq::Single { default: None, .. }, 0) => {
                 return Err(Error::ArgRequired {
                     attr: attr.to_string(),
                     arg: arg.to_string(),
-                })
+                });
             }
 
             // Checking not to the exceed maximally allowed number of values
@@ -366,7 +366,7 @@ where
                     type_name: arg.to_string(),
                     no,
                     max_no: *max_no,
-                })
+                });
             }
 
             // Checking that arguments are matching whitelist
@@ -376,15 +376,15 @@ where
                     ..
                 },
                 len,
-            )
-            | (
+            ) |
+            (
                 ListReq::Predefined {
                     whitelist: Some(whitelist),
                     ..
                 },
                 len,
-            )
-            | (
+            ) |
+            (
                 ListReq::Single {
                     whitelist: Some(whitelist),
                     ..

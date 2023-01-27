@@ -13,10 +13,10 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use proc_macro2::{TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
+use syn::spanned::Spanned;
 use syn::{
-    DeriveInput, Result, Data, Error, Fields, Index, Meta, MetaList, Path, NestedMeta,
-    spanned::Spanned, Type,
+    Data, DeriveInput, Error, Fields, Index, Meta, MetaList, NestedMeta, Path, Result, Type,
 };
 
 use crate::util::get_amplify_crate;
@@ -116,12 +116,7 @@ impl FromPath for Wrapper {
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
-            Err(attr_err!(
-                path.span(),
-                NAME,
-                "must contain at least one identifier",
-                EXAMPLE
-            )),
+            Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
             |segment| {
                 Ok(match segment.ident.to_string().as_str() {
                     "FromStr" => Some(Wrapper::FromStr),
@@ -194,12 +189,9 @@ impl FromPath for Wrapper {
                 Wrapper::Div,
                 Wrapper::Rem,
             ] as &[_],
-            Wrapper::BoolOps => &[
-                Wrapper::Not,
-                Wrapper::BitAnd,
-                Wrapper::BitOr,
-                Wrapper::BitXor,
-            ] as &[_],
+            Wrapper::BoolOps => {
+                &[Wrapper::Not, Wrapper::BitAnd, Wrapper::BitOr, Wrapper::BitXor] as &[_]
+            }
             Wrapper::BitOps => &[
                 Wrapper::Not,
                 Wrapper::BitAnd,
@@ -603,12 +595,7 @@ impl FromPath for WrapperMut {
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
-            Err(attr_err!(
-                path.span(),
-                NAME,
-                "must contain at least one identifier",
-                EXAMPLE
-            )),
+            Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
             |segment| {
                 Ok(match segment.ident.to_string().as_str() {
                     "DerefMut" => Some(WrapperMut::DerefMut),
@@ -658,11 +645,10 @@ impl FromPath for WrapperMut {
                 WrapperMut::DivAssign,
                 WrapperMut::RemAssign,
             ] as &[_],
-            WrapperMut::BoolAssign => &[
-                WrapperMut::BitAndAssign,
-                WrapperMut::BitOrAssign,
-                WrapperMut::BitXorAssign,
-            ] as &[_],
+            WrapperMut::BoolAssign => {
+                &[WrapperMut::BitAndAssign, WrapperMut::BitOrAssign, WrapperMut::BitXorAssign]
+                    as &[_]
+            }
             WrapperMut::BitAssign => &[
                 WrapperMut::BitAndAssign,
                 WrapperMut::BitOrAssign,
@@ -1000,17 +986,11 @@ fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
     let data = match input.data {
         Data::Struct(ref data) => data,
         Data::Enum(_) => {
-            return Err(Error::new_spanned(
-                input,
-                "Deriving wrapper is not supported in enums",
-            ))
+            return Err(Error::new_spanned(input, "Deriving wrapper is not supported in enums"));
         }
         //strict_encode_inner_enum(&input, &data),
         Data::Union(_) => {
-            return Err(Error::new_spanned(
-                input,
-                "Deriving wrapper is not supported in unions",
-            ))
+            return Err(Error::new_spanned(input, "Deriving wrapper is not supported in unions"));
         }
     };
 
@@ -1037,8 +1017,8 @@ fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
             if source.is_none() && fields.named.len() > 1 {
                 return Err(Error::new_spanned(
                     fields,
-                    "When the structure has multiple fields you must point out \
-                     the one you will wrap by using `#[wrap]` attribute",
+                    "When the structure has multiple fields you must point out the one you will \
+                     wrap by using `#[wrap]` attribute",
                 ));
             }
             let source = source
@@ -1066,8 +1046,8 @@ fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
             if source.is_none() && fields.unnamed.len() > 1 {
                 return Err(Error::new_spanned(
                     fields,
-                    "When the structure has multiple fields you must point out \
-                     the one you will wrap by using `#[wrap]` attribute",
+                    "When the structure has multiple fields you must point out the one you will \
+                     wrap by using `#[wrap]` attribute",
                 ));
             }
             field = source.unwrap_or(quote! { 0 });
@@ -1076,7 +1056,7 @@ fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
             return Err(Error::new_spanned(
                 input,
                 "Deriving wrapper is meaningless for unit structs",
-            ))
+            ));
         }
     };
     Ok((field, from))

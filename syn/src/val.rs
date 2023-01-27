@@ -13,15 +13,16 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::fmt::{Debug, Formatter, self};
 use std::convert::TryFrom;
-use syn::{
-    Type, Ident, Path, Lit, LitStr, LitByteStr, LitBool, LitChar, LitInt, LitFloat, TypePath,
-    PathSegment,
-};
-use syn::parse::{Parse, Parser};
+use std::fmt::{self, Debug, Formatter};
+
 use proc_macro2::Span;
-use quote::{ToTokens};
+use quote::ToTokens;
+use syn::parse::{Parse, Parser};
+use syn::{
+    Ident, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, PathSegment, Type,
+    TypePath,
+};
 
 use crate::{Error, ValueClass};
 
@@ -51,9 +52,7 @@ impl Debug for ArgValue {
 }
 
 impl From<&str> for ArgValue {
-    fn from(val: &str) -> Self {
-        ArgValue::Literal(Lit::Str(LitStr::new(val, Span::call_site())))
-    }
+    fn from(val: &str) -> Self { ArgValue::Literal(Lit::Str(LitStr::new(val, Span::call_site()))) }
 }
 
 impl From<String> for ArgValue {
@@ -94,10 +93,7 @@ impl From<isize> for ArgValue {
 
 impl From<f64> for ArgValue {
     fn from(val: f64) -> Self {
-        ArgValue::Literal(Lit::Float(LitFloat::new(
-            &val.to_string(),
-            Span::call_site(),
-        )))
+        ArgValue::Literal(Lit::Float(LitFloat::new(&val.to_string(), Span::call_site())))
     }
 }
 
@@ -123,9 +119,7 @@ impl From<Ident> for ArgValue {
 }
 
 impl From<Path> for ArgValue {
-    fn from(path: Path) -> Self {
-        ArgValue::Type(Type::Path(TypePath { qself: None, path }))
-    }
+    fn from(path: Path) -> Self { ArgValue::Type(Type::Path(TypePath { qself: None, path })) }
 }
 
 impl From<Option<LitByteStr>> for ArgValue {

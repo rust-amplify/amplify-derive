@@ -17,8 +17,8 @@
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, Ident, Lit,
-    LitStr, Meta, MetaNameValue, NestedMeta, Path, Result, Index,
+    Attribute, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Error, Fields, Ident, Index,
+    Lit, LitStr, Meta, MetaNameValue, NestedMeta, Path, Result,
 };
 
 const NAME: &str = "display";
@@ -39,12 +39,7 @@ enum FormattingTrait {
 impl FormattingTrait {
     pub fn from_path(path: &Path, span: Span) -> Result<Option<Self>> {
         path.segments.first().map_or(
-            Err(attr_err!(
-                span,
-                NAME,
-                "must contain at least one identifier",
-                EXAMPLE
-            )),
+            Err(attr_err!(span, NAME, "must contain at least one identifier", EXAMPLE)),
             |segment| {
                 Ok(match segment.ident.to_string().as_str() {
                     "Debug" => Some(FormattingTrait::Debug),
@@ -178,9 +173,9 @@ impl Technique {
                             _ => {
                                 return Err(attr_err!(
                                     span,
-                                    "alternative formatting can be given only if \
-                                 the first argument is a format string"
-                                ))
+                                    "alternative formatting can be given only if the first \
+                                     argument is a format string"
+                                ));
                             }
                         }
                     }
@@ -412,10 +407,7 @@ fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> 
     let technique = Technique::from_attrs(&input.attrs, input.span())?.ok_or_else(|| {
         Error::new(
             input.span(),
-            format!(
-                "Deriving `Display`: required attribute `{}` is missing.\n{}",
-                NAME, EXAMPLE
-            ),
+            format!("Deriving `Display`: required attribute `{}` is missing.\n{}", NAME, EXAMPLE),
         )
     })?;
 
@@ -567,9 +559,9 @@ fn inner_enum(input: &DeriveInput, data: &DataEnum) -> Result<TokenStream2> {
             use_global = false;
         }
 
-        if let Some(Technique::DocComments(_))
-        | Some(Technique::Lowercase(_))
-        | Some(Technique::Uppercase(_)) = current
+        if let Some(Technique::DocComments(_)) |
+        Some(Technique::Lowercase(_)) |
+        Some(Technique::Uppercase(_)) = current
         {
             use_global = false;
             if let Some(t) = current.as_mut() {

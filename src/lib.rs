@@ -242,14 +242,8 @@ use syn::DeriveInput;
 /// assert_eq!(format!("{}", Test::Named { x: 1 }), "Named { .. }");
 /// assert_eq!(format!("{}", Test::Unnamed(5)), "Unnamed(..)");
 /// assert_eq!(format!("{}", Test::NamedCustom { x: 8 }), "Custom8");
-/// assert_eq!(
-///     format!("{:#}", Test::NamedCustom { x: 8 }),
-///     "this is alternative"
-/// );
-/// assert_eq!(
-///     format!("{}", Test::UnnamedCustom("Test".to_string())),
-///     "CustomTest"
-/// );
+/// assert_eq!(format!("{:#}", Test::NamedCustom { x: 8 }), "this is alternative");
+/// assert_eq!(format!("{}", Test::UnnamedCustom("Test".to_string())), "CustomTest");
 /// ```
 ///
 /// Use with tuple types:
@@ -318,10 +312,7 @@ pub fn derive_display(input: TokenStream) -> TokenStream {
 ///
 /// assert_eq!(format!("{}", Error::Io), "I/O operation error");
 /// assert_eq!(format!("{}", Error::Overflow), "Math overflow");
-/// assert_eq!(
-///     format!("{}", Error::ZeroDivision(2)),
-///     "Zero division with 2"
-/// );
+/// assert_eq!(format!("{}", Error::ZeroDivision(2)), "Zero division with 2");
 /// ```
 #[proc_macro_derive(Error)]
 pub fn derive_error(input: TokenStream) -> TokenStream {
@@ -609,35 +600,25 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 ///     #[doc = "Method cloning [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes(&self) -> Vec<u8> {
-///         self.vec.clone()
-///     }
+///     pub fn get_bytes(&self) -> Vec<u8> { self.vec.clone() }
 ///
 ///     #[doc = "Method borrowing [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes_ref(&self) -> &Vec<u8> {
-///         &self.vec
-///     }
+///     pub fn get_bytes_ref(&self) -> &Vec<u8> { &self.vec }
 ///
 ///     #[doc = "Method returning mutable borrow of [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
-///         &mut self.vec
-///     }
+///     pub fn get_bytes_mut(&mut self) -> &mut Vec<u8> { &mut self.vec }
 ///
 ///     #[doc = "Method returning copy of [`One::flag`] field.\n"]
 ///     #[inline]
-///     pub fn get_flag(&self) -> bool {
-///         self.flag
-///     }
+///     pub fn get_flag(&self) -> bool { self.flag }
 ///
 ///     #[doc = "Method returning mutable borrow of [`One::flag`] field.\n"]
 ///     #[inline]
-///     pub fn get_flag_mut(&mut self) -> &mut bool {
-///         &mut self.flag
-///     }
+///     pub fn get_flag_mut(&mut self) -> &mut bool { &mut self.flag }
 /// }
 /// ```
 #[proc_macro_derive(Getters, attributes(getter))]
@@ -662,11 +643,12 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// * [`AsRef`]
 /// * [`core::borrow::Borrow`]
 ///
-/// You can implement additional derives, it they are implemented for the wrapped
-/// type, using `#[wrapper()]` proc macro:
+/// You can implement additional derives, it they are implemented for the
+/// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `Deref` for implementing [`core::ops::Deref`]
-///    * `BorrowSlice` for implementing [`core::borrow::Borrow`]`<[Self::Inner]>`
+///    * `BorrowSlice` for implementing
+///      [`core::borrow::Borrow`]`<[Self::Inner]>`
 /// 2. Formatting:
 ///    * `FromStr` for implementing [`core::str::FromStr`]
 ///    * `Debug` for implementing [`core::fmt::Debug`]
@@ -710,16 +692,16 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// * `#[wrapper(Hex)]` will derive both `LowerHex`, `UpperHex` and `FromHex`;
 /// * `#[wrapper(Exp)]` will derive both `LowerExp` and `UpperExp`;
 /// * `#[wrapper(NumberFmt)]` will derive all number formatting traits
-///    (`LowerHex`, `UpperHex`, `LowerExp`, `UpperExp`, `Octal`);
+///   (`LowerHex`, `UpperHex`, `LowerExp`, `UpperExp`, `Octal`);
 /// * `#[wrapper(RangeOps)]` will derive all index traits working with ranges
-///    (`IndexRange`, `IndexTo`, `IndexFrom`, `IndexInclusive`,
-///    `IndexToInclusive`, `IndexFull`);
-/// * `#[wrapper(MathOps)]` will derive all arithmetic operations
-///    (`Neg`, `Add`, `Sub`, `Mul`, `Div`, `Rem`);
-/// * `#[wrapper(BoolOps)]` will derive all boolean operations
-///    (`Not`, `BitAnd`, `BitOr`, `BitXor`);
+///   (`IndexRange`, `IndexTo`, `IndexFrom`, `IndexInclusive`,
+///   `IndexToInclusive`, `IndexFull`);
+/// * `#[wrapper(MathOps)]` will derive all arithmetic operations (`Neg`, `Add`,
+///   `Sub`, `Mul`, `Div`, `Rem`);
+/// * `#[wrapper(BoolOps)]` will derive all boolean operations (`Not`, `BitAnd`,
+///   `BitOr`, `BitXor`);
 /// * `#[wrapper(BitOps)]` will derive all boolean operations *and bit shifts*
-///    (`Not`, `BitAnd`, `BitOr`, `BitXor`, `Shl`, `Shr`).
+///   (`Not`, `BitAnd`, `BitOr`, `BitXor`, `Shl`, `Shr`).
 ///
 /// Other traits, such as [`PartialEq`], [`Eq`], [`PartialOrd`], [`Ord`],
 /// [`Hash`] can be implemented using standard `#[derive]` attribute in the
@@ -732,9 +714,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// # #[macro_use] extern crate amplify_derive;
 /// use amplify::Wrapper;
 ///
-/// #[derive(
-///     Wrapper, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Debug, Display,
-/// )]
+/// #[derive(Wrapper, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Debug, Display)]
 /// #[display(inner)]
 /// #[wrapper(LowerHex, UpperHex, Octal)]
 /// #[wrapper(MathOps, BitOps)]
@@ -747,6 +727,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// # use std::collections::HashMap;
 /// # use std::fmt::Debug;
 /// use std::marker::PhantomData;
+///
 /// use amplify::Wrapper;
 ///
 /// #[derive(Clone, Wrapper, Default, From)]
@@ -757,8 +738,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 ///     HashMap<usize, Vec<U>>,
 ///     PhantomData<T>,
 /// )
-/// where
-///     U: Sized + Clone + Debug;
+/// where U: Sized + Clone + Debug;
 ///
 /// let w = Wrapped::<(), u8>::default();
 /// assert_eq!(w.into_inner(), HashMap::<usize, Vec<u8>>::default());
@@ -790,8 +770,8 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
 ///
-/// You can implement additional derives, it they are implemented for the wrapped
-/// type, using `#[wrapper()]` proc macro:
+/// You can implement additional derives, it they are implemented for the
+/// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `DerefMut` for implementing [`core::ops::DerefMut`]
 ///    * `BorrowSliceMut` for implementing
@@ -824,16 +804,16 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///    * `ShrAssign` for implementing [`core::ops::ShrAssign`]
 ///
 /// There are shortcuts for derivations:
-/// * `#[wrapper(RangeMut)]` will derive all index traits working with
-///    ranges (`IndexRangeMut`, `IndexToMut`, `IndexFromMut`,
-///    `IndexInclusiveMut`, `IndexToInclusiveMut`, `IndexFullMut`);
+/// * `#[wrapper(RangeMut)]` will derive all index traits working with ranges
+///   (`IndexRangeMut`, `IndexToMut`, `IndexFromMut`, `IndexInclusiveMut`,
+///   `IndexToInclusiveMut`, `IndexFullMut`);
 /// * `#[wrapper(MathAssign)]` will derive all arithmetic operations
-///    (`AddAssign`, `SubAssign`, `MulAssign`, `DivAssign`, `RemAssign`);
+///   (`AddAssign`, `SubAssign`, `MulAssign`, `DivAssign`, `RemAssign`);
 /// * `#[wrapper(BoolAssign)]` will derive all boolean operations
-///    (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`);
-/// * `#[wrapper(BitAssign)]` will derive all boolean operations
-///    *and bit shifts* (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`,
-///    `ShlAssign`, `ShrAssign`);
+///   (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`);
+/// * `#[wrapper(BitAssign)]` will derive all boolean operations *and bit
+///   shifts* (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`, `ShlAssign`,
+///   `ShrAssign`);
 ///
 /// # Example
 ///
@@ -843,7 +823,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///
 /// #[derive(
 ///     Wrapper, WrapperMut, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Debug,
-///     Display,
+///     Display
 /// )]
 /// #[display(inner)]
 /// #[wrapper(NumberFmt, MathOps, BoolOps)]

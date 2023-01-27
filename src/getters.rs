@@ -14,17 +14,17 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use std::collections::HashMap;
-use std::iter::FromIterator;
 use std::convert::TryInto;
-use proc_macro2::{TokenStream as TokenStream2, Span, Ident};
+use std::iter::FromIterator;
+
+use amplify_syn::{ArgValue, ArgValueReq, AttrReq, ParametrizedAttr, ValueClass};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::{
-    Data, DeriveInput, Error, Fields, Result, LitStr, Attribute, DataStruct, ImplGenerics,
-    TypeGenerics, WhereClause, Field,
+    Attribute, Data, DataStruct, DeriveInput, Error, Field, Fields, ImplGenerics, LitStr, Result,
+    TypeGenerics, WhereClause,
 };
-
-use amplify_syn::{ParametrizedAttr, AttrReq, ArgValueReq, ArgValue, ValueClass};
 
 pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -42,14 +42,12 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream2> {
             ty_generics,
             where_clause,
         ),
-        Data::Enum(_) => Err(Error::new_spanned(
-            &input,
-            "Deriving getters is not supported in enums",
-        )),
-        Data::Union(_) => Err(Error::new_spanned(
-            &input,
-            "Deriving getters is not supported in unions",
-        )),
+        Data::Enum(_) => {
+            Err(Error::new_spanned(&input, "Deriving getters is not supported in enums"))
+        }
+        Data::Union(_) => {
+            Err(Error::new_spanned(&input, "Deriving getters is not supported in unions"))
+        }
     }
 }
 
@@ -85,9 +83,9 @@ impl GetterDerive {
         attr.check(AttrReq::with(map))?;
 
         if attr.args.contains_key("all") {
-            if attr.args.contains_key("as_clone")
-                || attr.args.contains_key("as_ref")
-                || attr.args.contains_key("as_mut")
+            if attr.args.contains_key("as_clone") ||
+                attr.args.contains_key("as_ref") ||
+                attr.args.contains_key("as_mut")
             {
                 return Err(Error::new(
                     Span::call_site(),
@@ -112,9 +110,8 @@ impl GetterDerive {
         // If we have to return copy or a clone of value and did not explicitly
         // specified different prefix for borrowing accessor, we need not to derive it
         // since we will have a naming conflict
-        if (attr.args.contains_key("as_clone") || attr.args.contains_key("as_copy"))
-            && attr
-                .args
+        if (attr.args.contains_key("as_clone") || attr.args.contains_key("as_copy")) &&
+            attr.args
                 .get("as_ref")
                 .map(|a| {
                     if let ArgValue::Literal(lit) = a {
@@ -129,10 +126,10 @@ impl GetterDerive {
         }
 
         // If we are not provided with any options, default to deriving borrows
-        if !(attr.args.contains_key("as_clone")
-            || attr.args.contains_key("as_copy")
-            || attr.args.contains_key("as_ref")
-            || attr.args.contains_key("as_mut"))
+        if !(attr.args.contains_key("as_clone") ||
+            attr.args.contains_key("as_copy") ||
+            attr.args.contains_key("as_ref") ||
+            attr.args.contains_key("as_mut"))
         {
             attr.args.insert("as_ref".to_owned(), ArgValue::from(""));
         }
@@ -244,9 +241,10 @@ impl GetterDerive {
             .or_else(|| field_name.map(Ident::to_string))
             .ok_or_else(|| {
                 Error::new(
-                span,
-                "Unnamed fields must be equipped with `#[getter(base_name = \"name\"]` attribute",
-            )
+                    span,
+                    "Unnamed fields must be equipped with `#[getter(base_name = \"name\"]` \
+                     attribute",
+                )
             })?;
 
         let name_lit = match method {
@@ -304,25 +302,20 @@ fn derive_struct_impl(
     match data.fields {
         Fields::Named(ref fields) => {
             for (index, field) in fields.named.iter().enumerate() {
-                methods.extend(derive_field_methods(
-                    field,
-                    index,
-                    struct_name,
-                    &global_param,
-                )?)
+                methods.extend(derive_field_methods(field, index, struct_name, &global_param)?)
             }
         }
         Fields::Unnamed(_) => {
             return Err(Error::new(
                 Span::call_site(),
                 "Deriving getters is not supported for tuple-bases structs",
-            ))
+            ));
         }
         Fields::Unit => {
             return Err(Error::new(
                 Span::call_site(),
                 "Deriving getters is meaningless for unit structs",
-            ))
+            ));
         }
     };
 

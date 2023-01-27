@@ -13,12 +13,12 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use syn::{Path, Lit};
-use syn::parse::{Parse, Result, ParseBuffer};
-use syn::ext::IdentExt;
-use syn::punctuated::Punctuated;
 use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
+use syn::ext::IdentExt;
+use syn::parse::{Parse, ParseBuffer, Result};
+use syn::punctuated::Punctuated;
+use syn::{Lit, Path};
 
 use crate::{ArgValue, Error};
 
@@ -40,9 +40,7 @@ impl Parse for MetaArgList {
 }
 
 impl ToTokens for MetaArgList {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        (quote! { ( list ) }).to_tokens(tokens);
-    }
+    fn to_tokens(&self, tokens: &mut TokenStream) { (quote! { ( list ) }).to_tokens(tokens); }
 }
 
 /// Drop-in replacement for [`syn::NestedMeta`], which allows to parse
@@ -64,8 +62,8 @@ impl Parse for MetaArg {
     fn parse(input: &ParseBuffer) -> Result<Self> {
         if input.peek2(Token![=]) {
             input.parse().map(MetaArg::NameValue)
-        } else if input.peek(Ident::peek_any)
-            || input.peek(Token![::]) && input.peek3(Ident::peek_any)
+        } else if input.peek(Ident::peek_any) ||
+            input.peek(Token![::]) && input.peek3(Ident::peek_any)
         {
             input.parse().map(MetaArg::Path)
         } else {

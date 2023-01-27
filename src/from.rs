@@ -49,12 +49,7 @@ enum InstructionEntity {
 
 impl InstructionEntity {
     pub fn with_fields(fields: &Fields, variant: Option<Ident>) -> Result<Self> {
-        let res = match (
-            fields.len(),
-            variant,
-            fields.clone(),
-            fields.iter().next().cloned(),
-        ) {
+        let res = match (fields.len(), variant, fields.clone(), fields.iter().next().cloned()) {
             (0, Some(v), ..) => InstructionEntity::Unit { variant: Some(v) },
             (_, variant, Fields::Unit, ..) => InstructionEntity::Unit { variant },
             (1, variant, Fields::Named(f), Some(Field { ident: Some(i), .. })) => {
@@ -199,10 +194,10 @@ impl InstructionEntry {
                     _ => {
                         return Err(attr_err!(
                             attr,
-                            "empty attribute is allowed only for entities \
-                         with a single field; for multi-field entities \
-                         specify the attribute right ahead of the target field"
-                        ))
+                            "empty attribute is allowed only for entities with a single field; \
+                             for multi-field entities specify the attribute right ahead of the \
+                             target field"
+                        ));
                     }
                 }
             } else {
@@ -217,9 +212,7 @@ impl InstructionEntry {
 struct InstructionTable(Vec<InstructionEntry>);
 
 impl InstructionTable {
-    pub fn new() -> Self {
-        Default::default()
-    }
+    pub fn new() -> Self { Default::default() }
 
     pub fn parse(
         &mut self,
@@ -259,24 +252,16 @@ impl InstructionTable {
         Ok(self)
     }
 
-    fn push(&mut self, item: InstructionEntry) {
-        self.0.push(item)
-    }
+    fn push(&mut self, item: InstructionEntry) { self.0.push(item) }
 
     fn extend<T>(&mut self, list: T) -> Result<usize>
-    where
-        T: IntoIterator<Item = InstructionEntry>,
-    {
+    where T: IntoIterator<Item = InstructionEntry> {
         let mut count = 0;
         for entry in list {
             self.0.iter().find(|e| *e == &entry).map_or(Ok(()), |_| {
                 Err(Error::new(
                     Span::call_site(),
-                    format!(
-                        "Attribute `#[{}]`: repeated use of type `{}`",
-                        NAME,
-                        quote! {ty}
-                    ),
+                    format!("Attribute `#[{}]`: repeated use of type `{}`", NAME, quote! {ty}),
                 ))
             })?;
             self.0.push(entry);

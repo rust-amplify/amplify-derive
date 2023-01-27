@@ -15,8 +15,9 @@
 
 #![allow(deprecated)] // We need this at mod level to support rustc 1.26.0
 
-use std::fmt::{Display, Formatter, self};
 use std::convert::Infallible;
+use std::fmt::{self, Display, Formatter};
+
 use proc_macro2::Span;
 
 /// Errors representing inconsistency in proc macro attribute structure
@@ -136,69 +137,55 @@ pub enum Error {
     /// are not supported
     #[deprecated(
         since = "1.1.0",
-        note = "This error variant is not used anymore after the introduction of custom attribute parser"
+        note = "This error variant is not used anymore after the introduction of custom attribute \
+                parser"
     )]
     NestedListsNotSupported(String),
 }
 
 impl From<Infallible> for Error {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 
 impl From<syn::Error> for Error {
-    fn from(err: syn::Error) -> Self {
-        Error::Parse(err)
-    }
+    fn from(err: syn::Error) -> Self { Error::Parse(err) }
 }
 
 impl From<Error> for syn::Error {
-    fn from(err: Error) -> Self {
-        syn::Error::new(Span::call_site(), err.to_string())
-    }
+    fn from(err: Error) -> Self { syn::Error::new(Span::call_site(), err.to_string()) }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Error::Parse(err) => write!(f, "attribute parse error: {}", err),
-            Error::NamesDontMatch(name1, name2) => write!(
-                f,
-                "Names of two merged attributes (`{}` and `{}`) must match",
-                name1,
-                name2
-            ),
-            Error::MultipleSingularValues(name) => write!(
-                f,
-                "Multiple values assigned to `{}` attribute",
-                name
-            ),
-            Error::MultipleLiteralValues(name) => write!(
-                f,
-                "Multiple literal values provided for `{}` attribute",
-                name
-            ),
+            Error::NamesDontMatch(name1, name2) => {
+                write!(f, "Names of two merged attributes (`{}` and `{}`) must match", name1, name2)
+            }
+            Error::MultipleSingularValues(name) => {
+                write!(f, "Multiple values assigned to `{}` attribute", name)
+            }
+            Error::MultipleLiteralValues(name) => {
+                write!(f, "Multiple literal values provided for `{}` attribute", name)
+            }
             Error::SingularAttrRequired(name) => write!(
                 f,
                 "Attribute `{}` must be in a singular form (`#[attr]` or `#[attr = ...]`)",
                 name
             ),
-            Error::ParametrizedAttrRequired(name) => write!(
-                f,
-                "Attribute `{}` must be in a parametrized form (`#[attr(...)]`)",
-                name
-            ),
+            Error::ParametrizedAttrRequired(name) => {
+                write!(f, "Attribute `{}` must be in a parametrized form (`#[attr(...)]`)", name)
+            }
             Error::ArgMustNotHaveValue { attr, arg } => write!(
                 f,
                 "Argument {arg} in `{attr}` attribute must not have a value",
-                attr = attr, arg = arg
+                attr = attr,
+                arg = arg
             ),
-            Error::ArgTypeProhibited { attr, arg: type_name } => write!(
-                f,
-                "Attribute `{}` prohibits arguments of type `{}`",
-                attr, type_name
-            ),
+            Error::ArgTypeProhibited {
+                attr,
+                arg: type_name,
+            } => write!(f, "Attribute `{}` prohibits arguments of type `{}`", attr, type_name),
             Error::ArgRequired { attr, arg } => write!(
                 f,
                 "Attribute `{}` requires argument `{}` to be explicitly specified",
@@ -206,30 +193,24 @@ impl Display for Error {
             ),
             Error::ArgNameMustBeUnique { attr, arg } => write!(
                 f,
-                "Argument names must be unique, while attribute `{}` contains multiple arguments with name`{}`",
+                "Argument names must be unique, while attribute `{}` contains multiple arguments \
+                 with name`{}`",
                 attr, arg,
             ),
-            Error::ArgNameMustBeIdent => write!(
-                f,
-                "Attribute arguments must be identifiers, not paths",
-            ),
-            Error::ArgValueRequired { attr, arg } => write!(
-                f,
-                "Attribute `{}` requires value for argument `{}`",
-                attr, arg
-            ),
-            Error::ArgValueMustBeLiteral => f.write_str(
-                "Attribute argument value must be a literal (string, int etc)",
-            ),
+            Error::ArgNameMustBeIdent => {
+                write!(f, "Attribute arguments must be identifiers, not paths",)
+            }
+            Error::ArgValueRequired { attr, arg } => {
+                write!(f, "Attribute `{}` requires value for argument `{}`", attr, arg)
+            }
+            Error::ArgValueMustBeLiteral => {
+                f.write_str("Attribute argument value must be a literal (string, int etc)")
+            }
             Error::ArgValueMustBeType => {
                 f.write_str("Attribute value for must be a valid type name")
             }
             Error::ParametrizedAttrHasNoValue(name) => {
-                write!(
-                    f,
-                    "Attribute `{name}` must be in a `#[{name} = ...]` form",
-                    name = name
-                )
+                write!(f, "Attribute `{name}` must be in a `#[{name} = ...]` form", name = name)
             }
             Error::NestedListsNotSupported(name) => write!(
                 f,
@@ -241,21 +222,23 @@ impl Display for Error {
                 "Attribute `{}` has an unsupported type of literal as one of its arguments",
                 attr
             ),
-            Error::AttributeUnknownArgument { attr, arg } => write!(
+            Error::AttributeUnknownArgument { attr, arg } => {
+                write!(f, "Attribute `{}` has an unknown argument `{}`", attr, arg)
+            }
+            Error::ArgNumberExceedsMax {
+                attr,
+                type_name,
+                no,
+                max_no,
+            } => write!(
                 f,
-                "Attribute `{}` has an unknown argument `{}`",
-                attr, arg
-            ),
-            Error::ArgNumberExceedsMax { attr, type_name, no, max_no } => write!(
-                f,
-                "Attribute `{}` has excessive number of arguments of type `{}` ({} while only {} are allowed)",
+                "Attribute `{}` has excessive number of arguments of type `{}` ({} while only {} \
+                 are allowed)",
                 attr, type_name, no, max_no
             ),
-            Error::ArgValueTypeMismatch { attr, arg } => write!(
-                f,
-                "Type mismatch in attribute `{}` argument `{}`",
-                attr, arg
-            ),
+            Error::ArgValueTypeMismatch { attr, arg } => {
+                write!(f, "Type mismatch in attribute `{}` argument `{}`", attr, arg)
+            }
         }
     }
 }
@@ -264,24 +247,24 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::Parse(err) => Some(err),
-            Error::NamesDontMatch(_, _)
-            | Error::MultipleSingularValues(_)
-            | Error::MultipleLiteralValues(_)
-            | Error::SingularAttrRequired(_)
-            | Error::ArgMustNotHaveValue { .. }
-            | Error::ArgTypeProhibited { .. }
-            | Error::ArgRequired { .. }
-            | Error::ParametrizedAttrRequired(_)
-            | Error::ArgNameMustBeIdent
-            | Error::ArgNameMustBeUnique { .. }
-            | Error::ArgValueRequired { .. }
-            | Error::ArgValueMustBeLiteral
-            | Error::ArgValueMustBeType
-            | Error::ParametrizedAttrHasNoValue(_)
-            | Error::UnsupportedLiteral(_)
-            | Error::AttributeUnknownArgument { .. }
-            | Error::ArgNumberExceedsMax { .. }
-            | Error::ArgValueTypeMismatch { .. } => None,
+            Error::NamesDontMatch(_, _) |
+            Error::MultipleSingularValues(_) |
+            Error::MultipleLiteralValues(_) |
+            Error::SingularAttrRequired(_) |
+            Error::ArgMustNotHaveValue { .. } |
+            Error::ArgTypeProhibited { .. } |
+            Error::ArgRequired { .. } |
+            Error::ParametrizedAttrRequired(_) |
+            Error::ArgNameMustBeIdent |
+            Error::ArgNameMustBeUnique { .. } |
+            Error::ArgValueRequired { .. } |
+            Error::ArgValueMustBeLiteral |
+            Error::ArgValueMustBeType |
+            Error::ParametrizedAttrHasNoValue(_) |
+            Error::UnsupportedLiteral(_) |
+            Error::AttributeUnknownArgument { .. } |
+            Error::ArgNumberExceedsMax { .. } |
+            Error::ArgValueTypeMismatch { .. } => None,
             Error::NestedListsNotSupported(_) => None,
         }
     }

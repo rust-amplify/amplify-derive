@@ -13,9 +13,9 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use syn::{Type, Lit};
+use syn::{Lit, Type};
 
-use crate::{Error, ArgValue};
+use crate::{ArgValue, Error};
 
 /// Constrains for attribute value type
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -30,71 +30,49 @@ pub enum ValueClass {
 }
 
 impl From<Lit> for ValueClass {
-    fn from(lit: Lit) -> Self {
-        ValueClass::Literal(LiteralClass::from(lit))
-    }
+    fn from(lit: Lit) -> Self { ValueClass::Literal(LiteralClass::from(lit)) }
 }
 
 impl From<&Lit> for ValueClass {
-    fn from(lit: &Lit) -> Self {
-        ValueClass::Literal(LiteralClass::from(lit))
-    }
+    fn from(lit: &Lit) -> Self { ValueClass::Literal(LiteralClass::from(lit)) }
 }
 
 impl From<Type> for ValueClass {
-    fn from(ty: Type) -> Self {
-        ValueClass::Type(TypeClass::from(ty))
-    }
+    fn from(ty: Type) -> Self { ValueClass::Type(TypeClass::from(ty)) }
 }
 
 impl From<&Type> for ValueClass {
-    fn from(ty: &Type) -> Self {
-        ValueClass::Type(TypeClass::from(ty))
-    }
+    fn from(ty: &Type) -> Self { ValueClass::Type(TypeClass::from(ty)) }
 }
 
 impl ValueClass {
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Str)`
-    pub fn str() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Str)
-    }
+    pub fn str() -> ValueClass { ValueClass::Literal(LiteralClass::Str) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::ByteStr)`
-    pub fn byte_str() -> ValueClass {
-        ValueClass::Literal(LiteralClass::ByteStr)
-    }
+    pub fn byte_str() -> ValueClass { ValueClass::Literal(LiteralClass::ByteStr) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Byte)`
-    pub fn byte() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Byte)
-    }
+    pub fn byte() -> ValueClass { ValueClass::Literal(LiteralClass::Byte) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Int)`
-    pub fn int() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Int)
-    }
+    pub fn int() -> ValueClass { ValueClass::Literal(LiteralClass::Int) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Float)`
-    pub fn float() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Float)
-    }
+    pub fn float() -> ValueClass { ValueClass::Literal(LiteralClass::Float) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Char)`
-    pub fn char() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Char)
-    }
+    pub fn char() -> ValueClass { ValueClass::Literal(LiteralClass::Char) }
 
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Bool)`
-    pub fn bool() -> ValueClass {
-        ValueClass::Literal(LiteralClass::Bool)
-    }
+    pub fn bool() -> ValueClass { ValueClass::Literal(LiteralClass::Bool) }
 }
 
 impl ValueClass {
@@ -147,9 +125,7 @@ pub enum LiteralClass {
 
 impl From<Lit> for LiteralClass {
     #[inline]
-    fn from(lit: Lit) -> Self {
-        LiteralClass::from(&lit)
-    }
+    fn from(lit: Lit) -> Self { LiteralClass::from(&lit) }
 }
 
 impl From<&Lit> for LiteralClass {
@@ -236,9 +212,7 @@ pub enum TypeClass {
 
 impl From<Type> for TypeClass {
     #[inline]
-    fn from(ty: Type) -> Self {
-        TypeClass::from(&ty)
-    }
+    fn from(ty: Type) -> Self { TypeClass::from(&ty) }
 }
 
 impl From<&Type> for TypeClass {
