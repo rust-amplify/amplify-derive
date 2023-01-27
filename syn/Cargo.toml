@@ -5,12 +5,12 @@ description = "Amplifying syn capabilities: helper functions for creating proc m
 authors = ["Dr. Maxim Orlovsky <orlovsky@pandoracore.com>"]
 keywords = ["generics", "derive", "wrap", "patterns"]
 categories = ["development-tools::procedural-macro-helpers", "rust-patterns"]
-repository = "https://github.com/rust-amplify/rust-amplify"
+repository = "https://github.com/rust-amplify/amplify-derive"
 homepage = "https://github.com/rust-amplify"
-license = "MIT"
-readme = "README.md"
-edition = "2021"
 rust-version = "1.60.0"
+edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
 
 [dependencies]
 syn = "1"

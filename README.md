@@ -1,11 +1,13 @@
 # Rust Amplify Library: derive macros
+![Build](https://github.com/rust-amplify/amplify-derive/workflows/Build/badge.svg)
+![Tests](https://github.com/rust-amplify/amplify-derive/workflows/Tests/badge.svg)
+![Lints](https://github.com/rust-amplify/amplify-derive/workflows/Lints/badge.svg)
+[![codecov](https://codecov.io/gh/rust-amplify/amplify-derive/branch/master/graph/badge.svg)](https://codecov.io/gh/rust-amplify/rust-amplify)
+
 [![crates.io](https://meritbadge.herokuapp.com/amplify_derive)](https://crates.io/crates/amplify_derive)
 [![Docs](https://docs.rs/amplify_derive/badge.svg)](https://docs.rs/amplify_derive)
-![Build](https://github.com/rust-amplify/rust-amplify/workflows/Build/badge.svg)
-![Tests](https://github.com/rust-amplify/rust-amplify/workflows/Tests/badge.svg)
-![Lints](https://github.com/rust-amplify/rust-amplify/workflows/Lints/badge.svg)
-[![codecov](https://codecov.io/gh/rust-amplify/rust-amplify/branch/master/graph/badge.svg)](https://codecov.io/gh/rust-amplify/rust-amplify)
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+[![Apache-2 licensed](https://img.shields.io/crates/l/amplify_derive)](./LICENSE)
 
 Amplifying Rust language capabilities: multiple generic trait implementations, 
 type wrappers, derive macros.
@@ -251,7 +253,7 @@ types.
 
 ### Example
 
-```
+```rust
 #[derive(Getters, Default)]
 struct One {
     a: Vec<u8>,
@@ -275,7 +277,7 @@ arbitrary time without much hussle:
 
 ### Example
 
-```
+```rust
 # #[macro_use] extern crate amplify_derive;
 extern crate amplify;
 use amplify::AsAny;

@@ -10,30 +10,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  features:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        feature: [ serde, std, alloc, parse_arg, stringly_conversions, rand, c_raw, proc_attr, hex, apfloat ]
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v2
-      - name: Feature ${{matrix.feature}}
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --no-default-features --features=${{matrix.feature}}
-      - name: Defaults + ${{matrix.feature}}
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features=${{matrix.feature}}
   toolchains:
     runs-on: ubuntu-latest
     strategy:
@@ -54,27 +30,3 @@ jobs:
         with:
           command: check
           args: --workspace --all-targets --all-features
-  dependency:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v2
-      - name: Create dependency
-        run: |
-          cargo new dep_test
-          cd dep_test
-          printf 'amplify = { path = "..", features = ["all"] }\namplify_derive = { path = "../derive" }\n\n[workspace]' >> Cargo.toml
-      - name: Build dependency
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --verbose
-      - name: Clean up
-        run: |
-          cd ..
-          rm -rf dep_test
