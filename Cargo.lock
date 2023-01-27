@@ -19,7 +19,7 @@ name = "amplify_derive"
 version = "4.0.0-alpha.3"
 dependencies = [
  "amplify",
- "amplify_syn 1.1.6",
+ "amplify_syn 1.2.0",
  "proc-macro2",
  "quote",
  "syn",
@@ -32,7 +32,7 @@ version = "4.0.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "633f53abfbce074d0334ba0d23e0f8f6d6ca9daf1c8a3219c58aead289bc405c"
 dependencies = [
- "amplify_syn 1.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "amplify_syn 1.1.6",
  "proc-macro2",
  "quote",
  "syn",
@@ -47,6 +47,8 @@ checksum = "f27d3d00d3d115395a7a8a4dc045feb7aa82b641e485f7e15f4e67ac16f4f56d"
 [[package]]
 name = "amplify_syn"
 version = "1.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da24db1445cc7bc3842fa072c2d51fe5b25b812b6a572d65842a4c72e87221ac"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -55,9 +57,7 @@ dependencies = [
 
 [[package]]
 name = "amplify_syn"
-version = "1.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da24db1445cc7bc3842fa072c2d51fe5b25b812b6a572d65842a4c72e87221ac"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
