@@ -45,6 +45,10 @@ impl From<&Type> for ValueClass {
     fn from(ty: &Type) -> Self { ValueClass::Type(TypeClass::from(ty)) }
 }
 
+impl From<LiteralClass> for ValueClass {
+    fn from(cls: LiteralClass) -> Self { ValueClass::Literal(cls) }
+}
+
 impl ValueClass {
     /// Convenience constructor creating
     /// `ValueClass::Literal(LiteralClass::Str)`
