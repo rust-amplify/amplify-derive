@@ -2,7 +2,7 @@
 ![Build](https://github.com/rust-amplify/amplify-derive/workflows/Build/badge.svg)
 ![Tests](https://github.com/rust-amplify/amplify-derive/workflows/Tests/badge.svg)
 ![Lints](https://github.com/rust-amplify/amplify-derive/workflows/Lints/badge.svg)
-[![codecov](https://codecov.io/gh/rust-amplify/amplify-derive/branch/master/graph/badge.svg)](https://codecov.io/gh/rust-amplify/rust-amplify)
+[![codecov](https://codecov.io/gh/rust-amplify/amplify-derive/branch/master/graph/badge.svg)](https://codecov.io/gh/rust-amplify/amplify-derive)
 
 [![crates.io](https://meritbadge.herokuapp.com/amplify_derive)](https://crates.io/crates/amplify_derive)
 [![Docs](https://docs.rs/amplify_derive/badge.svg)](https://docs.rs/amplify_derive)
@@ -15,7 +15,7 @@ type wrappers, derive macros.
 This is a part of Rust language amplification library providing required derive
 macros.
 
-Minimum supported rust compiler version (MSRV): 1.59.0. Rust edition 2021.
+Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
 
 ## Overview
 

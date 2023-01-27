@@ -29,4 +29,6 @@ amplify_syn = { version = "1.1", path = "syn" }
 
 [dev-dependencies]
 amplify = { version = "4.0.0-beta.7" }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
