@@ -109,10 +109,10 @@ impl ArgValueReq {
     }
 
     /// Construct [`ArgValueReq::Required`] variant with no default value
-    pub fn required(class: ValueClass) -> ArgValueReq {
+    pub fn required(class: impl Into<ValueClass>) -> ArgValueReq {
         ArgValueReq::Required {
             default: None,
-            class,
+            class: class.into(),
         }
     }
 
