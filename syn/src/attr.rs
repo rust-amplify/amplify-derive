@@ -403,9 +403,9 @@ impl ParametrizedAttr {
     }
 
     /// Returns value for a given argument with name `name`, if it is defined,
-    /// or panics otherwise with `expect` message.
-    pub fn expect_arg_value<T>(&self, name: &str, expect: &'static str) -> T
-        where T: TryFrom<ArgValue, Error = Error> {
+    /// or panics otherwise.
+    pub fn unwrap_arg_value<T>(&self, name: &str) -> T
+    where T: TryFrom<ArgValue, Error = Error> {
         self.args
             .get(name)
             .ok_or(Error::ArgRequired {
@@ -413,7 +413,7 @@ impl ParametrizedAttr {
                 arg: name.to_owned(),
             })
             .and_then(|a| a.clone().try_into())
-            .expect(expect)
+            .expect("required attribute value is not present or has an invalid type")
     }
 
     /// Returns literal value for a given argument with name `name`, if it is
