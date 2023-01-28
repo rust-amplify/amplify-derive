@@ -37,6 +37,9 @@ pub enum ArgValue {
     /// Attribute value represented by a type name
     Type(Type),
 
+    /// Attribute value represented by an expression
+    Expr(Expr),
+
     /// No value is given
     None,
 }
@@ -46,6 +49,7 @@ impl Debug for ArgValue {
         match self {
             ArgValue::Literal(lit) => write!(f, "ArgValue::Literal({})", lit.to_token_stream()),
             ArgValue::Type(ty) => write!(f, "ArgValue::Type({})", ty.to_token_stream()),
+            ArgValue::Expr(expr) => write!(f, "ArgValue::Expr({})", expr.to_token_stream()),
             ArgValue::None => f.write_str("ArgValue::None"),
         }
     }
@@ -310,8 +314,8 @@ impl TryFrom<ArgValue> for Expr {
 
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
-            ArgValue::Type(Type::Verbatim(expr)) => Ok(Expr::Verbatim(expr)),
-            _ => Err(Error::ArgValueMustBeType),
+            ArgValue::Expr(expr) => Ok(expr),
+            _ => Err(Error::ArgValueMustBeExpr),
         }
     }
 }
@@ -423,21 +427,24 @@ impl TryFrom<ArgValue> for Option<Expr> {
 
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
-            ArgValue::Type(Type::Verbatim(expr)) => Ok(Some(Expr::Verbatim(expr))),
+            ArgValue::Expr(expr) => Ok(Some(expr)),
             ArgValue::None => Ok(None),
-            _ => Err(Error::ArgValueMustBeType),
+            _ => Err(Error::ArgValueMustBeExpr),
         }
     }
 }
 
 impl ArgValue {
+    // TODO: Rename into `to_*`
     /// Returns literal value for [`ArgValue::Literal`] variant or fails with
     /// [`Error::ArgValueMustBeLiteral`] otherwise
     #[inline]
     pub fn literal_value(&self) -> Result<Lit, Error> {
         match self {
             ArgValue::Literal(lit) => Ok(lit.clone()),
-            ArgValue::Type(_) | ArgValue::None => Err(Error::ArgValueMustBeLiteral),
+            ArgValue::Type(_) | ArgValue::Expr(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeLiteral)
+            }
         }
     }
 
@@ -446,8 +453,22 @@ impl ArgValue {
     #[inline]
     pub fn type_value(&self) -> Result<Type, Error> {
         match self {
-            ArgValue::Literal(_) | ArgValue::None => Err(Error::ArgValueMustBeType),
+            ArgValue::Literal(_) | ArgValue::Expr(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeType)
+            }
             ArgValue::Type(ty) => Ok(ty.clone()),
+        }
+    }
+
+    /// Returns type value for [`ArgValue::Expr`] variant or fails with
+    /// [`Error::ArgValueMustBeExpr`] otherwise
+    #[inline]
+    pub fn type_expr(&self) -> Result<Expr, Error> {
+        match self {
+            ArgValue::Literal(_) | ArgValue::Type(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeExpr)
+            }
+            ArgValue::Expr(expr) => Ok(expr.clone()),
         }
     }
 
@@ -479,6 +500,7 @@ impl ArgValue {
         match self {
             ArgValue::Literal(lit) => Some(ValueClass::from(lit)),
             ArgValue::Type(ty) => Some(ValueClass::from(ty)),
+            ArgValue::Expr(_) => Some(ValueClass::Expr),
             ArgValue::None => None,
         }
     }

@@ -129,6 +129,7 @@ impl ToTokens for ArgValue {
         match self {
             ArgValue::Literal(lit) => lit.to_tokens(tokens),
             ArgValue::Type(ty) => ty.to_tokens(tokens),
+            ArgValue::Expr(expr) => expr.to_tokens(tokens),
             ArgValue::None => quote! { ! }.to_tokens(tokens),
         }
     }

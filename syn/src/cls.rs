@@ -27,6 +27,9 @@ pub enum ValueClass {
     /// The value must be of a native rust type matching given type constraints
     /// (see [`TypeClass`])
     Type(TypeClass),
+
+    /// The value must be of a native rust expression.
+    Expr,
 }
 
 impl From<Lit> for ValueClass {

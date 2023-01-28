@@ -129,6 +129,10 @@ pub enum Error {
     /// `#[attr(arg = u8)]` or `#[arg = String]`
     ArgValueMustBeType,
 
+    /// Parametrized attribute argument must be a valid rust expression:
+    /// `#[attr(arg = 2 + 2)]` or `#[arg = { u16::MAX as usize }]`
+    ArgValueMustBeExpr,
+
     /// Parametrized attribute (in form of `#[attr(...)]`) does not
     /// have a single value
     ParametrizedAttrHasNoValue(String),
@@ -209,6 +213,9 @@ impl Display for Error {
             Error::ArgValueMustBeType => {
                 f.write_str("Attribute value for must be a valid type name")
             }
+            Error::ArgValueMustBeExpr => {
+                f.write_str("Attribute value for must be a valid expression")
+            }
             Error::ParametrizedAttrHasNoValue(name) => {
                 write!(f, "Attribute `{name}` must be in a `#[{name} = ...]` form", name = name)
             }
@@ -260,6 +267,7 @@ impl std::error::Error for Error {
             Error::ArgValueRequired { .. } |
             Error::ArgValueMustBeLiteral |
             Error::ArgValueMustBeType |
+            Error::ArgValueMustBeExpr |
             Error::ParametrizedAttrHasNoValue(_) |
             Error::UnsupportedLiteral(_) |
             Error::AttributeUnknownArgument { .. } |
