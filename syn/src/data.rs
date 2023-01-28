@@ -13,6 +13,7 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
+// TODO: Write docs for `data` module
 #![allow(missing_docs)]
 
 use std::ops::{Deref, DerefMut};
