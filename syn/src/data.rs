@@ -48,6 +48,10 @@ pub enum Fields {
     Unnamed(Items<Field>),
 }
 
+impl Fields {
+    pub fn is_unit(&self) -> bool { matches!(self, Fields::Unit) }
+}
+
 pub trait Element: Sized {
     type Input: Sized;
     fn with(input: Self::Input, attr_name: &Ident) -> syn::Result<Self>;
