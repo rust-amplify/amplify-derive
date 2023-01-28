@@ -227,8 +227,8 @@ impl From<syn::VisRestricted> for Scope {
 impl DataType {
     pub fn derive<D: DeriveInner>(
         &self,
-        trait_crate: Path,
-        trait_name: Ident,
+        trait_crate: &Path,
+        trait_name: &Ident,
         attr: &D,
     ) -> syn::Result<TokenStream2> {
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
