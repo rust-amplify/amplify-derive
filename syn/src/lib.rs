@@ -46,9 +46,13 @@ mod error;
 mod parsers;
 mod req;
 mod val;
+mod data;
 
 pub use attr::{Attr, ExtractAttr, ParametrizedAttr, SingularAttr};
 pub use cls::{LiteralClass, TypeClass, ValueClass};
+pub use data::{
+    DataInner, DataType, Derive, Element, Field, Fields, Items, NamedField, Scope, Variant, Vis,
+};
 pub use error::Error;
 pub use parsers::{MetaArg, MetaArgList, MetaArgNameValue};
 pub use req::{ArgValueReq, AttrReq, ListReq, ValueReq};
