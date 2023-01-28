@@ -278,9 +278,7 @@ impl ValueReq {
 /// Requirements for list elements. For instance, used in [`AttrReq`] for
 /// providing [`crate::ParametrizedAttr`] fields requirements.
 #[derive(Clone)]
-pub enum ListReq<T>
-where T: Clone
-{
+pub enum ListReq<T> {
     /// Only a single value allowed and it must be present
     Single {
         /// Restricts set of possible values to the given whitelist
@@ -327,6 +325,37 @@ where T: Clone
 
     /// Element must not be present
     Deny,
+}
+
+impl<T> ListReq<T> {
+    /// Convenience constructor for list requiring presence of an optional
+    /// single element.
+    pub fn maybe_one(name: T) -> Self {
+        ListReq::Many {
+            whitelist: Some(vec![name]),
+            required: false,
+            max_no: Some(1),
+        }
+    }
+
+    /// Convenience constructor for list requiring presence of a single element
+    /// from a list of possible values.
+    pub fn one_of(names: Vec<T>) -> Self {
+        ListReq::Single {
+            whitelist: Some(names),
+            default: None,
+        }
+    }
+
+    /// Convenience constructor for list requiring presence of multiple elements
+    /// from a list of possible values.
+    pub fn any_of(names: Vec<T>, required: bool) -> Self {
+        ListReq::Many {
+            whitelist: Some(names),
+            required,
+            max_no: None,
+        }
+    }
 }
 
 impl<T> ListReq<T>
