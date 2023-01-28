@@ -20,8 +20,8 @@ use proc_macro2::Span;
 use quote::ToTokens;
 use syn::parse::{Parse, Parser};
 use syn::{
-    Ident, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, PathSegment, Type,
-    TypePath,
+    Expr, Ident, Lit, LitBool, LitByteStr, LitChar, LitFloat, LitInt, LitStr, Path, PathSegment,
+    Type, TypePath,
 };
 
 use crate::{Error, ValueClass};
@@ -305,6 +305,17 @@ impl TryFrom<ArgValue> for Path {
     }
 }
 
+impl TryFrom<ArgValue> for Expr {
+    type Error = Error;
+
+    fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
+        match value {
+            ArgValue::Type(Type::Verbatim(expr)) => Ok(Expr::Verbatim(expr)),
+            _ => Err(Error::ArgValueMustBeType),
+        }
+    }
+}
+
 impl TryFrom<ArgValue> for Option<LitStr> {
     type Error = Error;
 
@@ -401,6 +412,18 @@ impl TryFrom<ArgValue> for Option<Path> {
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
             ArgValue::Type(Type::Path(ty)) => Ok(Some(ty.path)),
+            ArgValue::None => Ok(None),
+            _ => Err(Error::ArgValueMustBeType),
+        }
+    }
+}
+
+impl TryFrom<ArgValue> for Option<Expr> {
+    type Error = Error;
+
+    fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
+        match value {
+            ArgValue::Type(Type::Verbatim(expr)) => Ok(Some(Expr::Verbatim(expr))),
             ArgValue::None => Ok(None),
             _ => Err(Error::ArgValueMustBeType),
         }
