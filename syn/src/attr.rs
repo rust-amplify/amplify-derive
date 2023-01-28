@@ -189,16 +189,16 @@ impl Attr {
     }
 
     /// Returns literal value for the [`Attr::Singular`] variant or fails with
-    /// [`Error::ParametrizedAttrHasNoValue`]. See [`ArgValue::literal_value`]
-    /// for more details.
+    /// [`Error::ParametrizedAttrHasNoValue`]. See
+    /// [`ArgValue::to_literal_value`] for more details.
     #[inline]
-    pub fn literal_value(&self) -> Result<Lit, Error> { self.arg_value()?.literal_value() }
+    pub fn literal_value(&self) -> Result<Lit, Error> { self.arg_value()?.to_literal_value() }
 
     /// Returns type value for the [`Attr::Singular`] variant or fails with
-    /// [`Error::ParametrizedAttrHasNoValue`]. See [`ArgValue::literal_value`]
-    /// for more details.
+    /// [`Error::ParametrizedAttrHasNoValue`]. See
+    /// [`ArgValue::to_literal_value`] for more details.
     #[inline]
-    pub fn type_value(&self) -> Result<Type, Error> { self.arg_value()?.type_value() }
+    pub fn type_value(&self) -> Result<Type, Error> { self.arg_value()?.to_type_value() }
 }
 
 impl SingularAttr {
@@ -272,15 +272,15 @@ impl SingularAttr {
     }
 
     /// Returns literal value, if any, or fails with
-    /// [`Error::ArgValueRequired`]. See [`ArgValue::literal_value`] for the
+    /// [`Error::ArgValueRequired`]. See [`ArgValue::to_literal_value`] for the
     /// details.
     #[inline]
-    pub fn literal_value(&self) -> Result<Lit, Error> { self.value.literal_value() }
+    pub fn literal_value(&self) -> Result<Lit, Error> { self.value.to_literal_value() }
 
     /// Returns type value, if any, or fails with [`Error::ArgValueRequired`].
-    /// See [`ArgValue::literal_value`] for the details.
+    /// See [`ArgValue::to_literal_value`] for the details.
     #[inline]
-    pub fn type_value(&self) -> Result<Type, Error> { self.value.type_value() }
+    pub fn type_value(&self) -> Result<Type, Error> { self.value.to_type_value() }
 
     /// Merges data from the `other` into the self.
     ///
@@ -418,7 +418,7 @@ impl ParametrizedAttr {
 
     /// Returns literal value for a given argument with name `name`, if it is
     /// defined, or fails with [`Error::ArgValueRequired`]. See
-    /// [`ArgValue::literal_value`] for the details.
+    /// [`ArgValue::to_literal_value`] for the details.
     #[deprecated(note = "use ArgValue::arg_value")]
     pub fn arg_literal_value(&self, name: &str) -> Result<Lit, Error> {
         self.args
@@ -427,7 +427,7 @@ impl ParametrizedAttr {
                 attr: self.name.clone(),
                 arg: name.to_owned(),
             })?
-            .literal_value()
+            .to_literal_value()
     }
 
     /// Checks if the attribute has a verbatim argument matching the provided

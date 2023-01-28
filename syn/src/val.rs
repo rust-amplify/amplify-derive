@@ -435,11 +435,46 @@ impl TryFrom<ArgValue> for Option<Expr> {
 }
 
 impl ArgValue {
-    // TODO: Rename into `to_*`
-    /// Returns literal value for [`ArgValue::Literal`] variant or fails with
+    /// Converts into literal value for [`ArgValue::Literal`] variant or fails
+    /// with [`Error::ArgValueMustBeLiteral`] otherwise
+    #[inline]
+    pub fn into_literal_value(self) -> Result<Lit, Error> {
+        match self {
+            ArgValue::Literal(lit) => Ok(lit),
+            ArgValue::Type(_) | ArgValue::Expr(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeLiteral)
+            }
+        }
+    }
+
+    /// Converts into type value for [`ArgValue::Type`] variant or fails with
+    /// [`Error::ArgValueMustBeType`] otherwise
+    #[inline]
+    pub fn into_type_value(self) -> Result<Type, Error> {
+        match self {
+            ArgValue::Literal(_) | ArgValue::Expr(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeType)
+            }
+            ArgValue::Type(ty) => Ok(ty),
+        }
+    }
+
+    /// Converts into type value for [`ArgValue::Expr`] variant or fails with
+    /// [`Error::ArgValueMustBeExpr`] otherwise
+    #[inline]
+    pub fn into_type_expr(self) -> Result<Expr, Error> {
+        match self {
+            ArgValue::Literal(_) | ArgValue::Type(_) | ArgValue::None => {
+                Err(Error::ArgValueMustBeExpr)
+            }
+            ArgValue::Expr(expr) => Ok(expr),
+        }
+    }
+
+    /// Constructs literal value for [`ArgValue::Literal`] variant or fails with
     /// [`Error::ArgValueMustBeLiteral`] otherwise
     #[inline]
-    pub fn literal_value(&self) -> Result<Lit, Error> {
+    pub fn to_literal_value(&self) -> Result<Lit, Error> {
         match self {
             ArgValue::Literal(lit) => Ok(lit.clone()),
             ArgValue::Type(_) | ArgValue::Expr(_) | ArgValue::None => {
@@ -448,10 +483,10 @@ impl ArgValue {
         }
     }
 
-    /// Returns type value for [`ArgValue::Type`] variant or fails with
+    /// Constructs type value for [`ArgValue::Type`] variant or fails with
     /// [`Error::ArgValueMustBeType`] otherwise
     #[inline]
-    pub fn type_value(&self) -> Result<Type, Error> {
+    pub fn to_type_value(&self) -> Result<Type, Error> {
         match self {
             ArgValue::Literal(_) | ArgValue::Expr(_) | ArgValue::None => {
                 Err(Error::ArgValueMustBeType)
@@ -460,15 +495,45 @@ impl ArgValue {
         }
     }
 
-    /// Returns type value for [`ArgValue::Expr`] variant or fails with
+    /// Constructs type value for [`ArgValue::Expr`] variant or fails with
     /// [`Error::ArgValueMustBeExpr`] otherwise
     #[inline]
-    pub fn type_expr(&self) -> Result<Expr, Error> {
+    pub fn to_type_expr(&self) -> Result<Expr, Error> {
         match self {
             ArgValue::Literal(_) | ArgValue::Type(_) | ArgValue::None => {
                 Err(Error::ArgValueMustBeExpr)
             }
             ArgValue::Expr(expr) => Ok(expr.clone()),
+        }
+    }
+
+    /// Returns a reference to a literal value for [`ArgValue::Literal`]
+    /// variant, or `None` otherwise.
+    #[inline]
+    pub fn as_literal_value(&self) -> Option<&Lit> {
+        match self {
+            ArgValue::Literal(ref lit) => Some(lit),
+            ArgValue::Type(_) | ArgValue::Expr(_) | ArgValue::None => None,
+        }
+    }
+
+    /// Returns a reference to a literal value for  [`ArgValue::Type`]
+    /// variant, or `None` otherwise.
+    #[inline]
+    pub fn as_type_value(&self) -> Option<&Type> {
+        match self {
+            ArgValue::Literal(_) | ArgValue::Expr(_) | ArgValue::None => None,
+            ArgValue::Type(ref ty) => Some(ty),
+        }
+    }
+
+    /// Returns a reference to a literal value for  [`ArgValue::Expr`]
+    /// variant, or `None` otherwise.
+    #[inline]
+    pub fn as_type_expr(&self) -> Option<&Expr> {
+        match self {
+            ArgValue::Literal(_) | ArgValue::Type(_) | ArgValue::None => None,
+            ArgValue::Expr(ref expr) => Some(expr),
         }
     }
 
