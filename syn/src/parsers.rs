@@ -119,7 +119,10 @@ impl Parse for ArgValue {
         if input.peek(Lit) {
             input.parse().map(ArgValue::Literal)
         } else {
-            input.parse().map(ArgValue::Type)
+            input
+                .parse()
+                .map(ArgValue::Type)
+                .or_else(|_| input.parse().map(ArgValue::Expr))
         }
     }
 }
