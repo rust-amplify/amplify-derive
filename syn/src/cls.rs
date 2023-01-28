@@ -128,7 +128,7 @@ pub enum LiteralClass {
     Bool,
 
     /// Literal must be a verbatim form
-    Verbatim,
+    Any,
 }
 
 impl From<Lit> for LiteralClass {
@@ -146,7 +146,7 @@ impl From<&Lit> for LiteralClass {
             Lit::Int(_) => LiteralClass::Int,
             Lit::Float(_) => LiteralClass::Float,
             Lit::Bool(_) => LiteralClass::Bool,
-            Lit::Verbatim(_) => LiteralClass::Verbatim,
+            Lit::Verbatim(_) => LiteralClass::Any,
         }
     }
 }
@@ -155,7 +155,9 @@ impl LiteralClass {
     /// Checks the literal against current requirements, generating [`Error`] if
     /// the requirements are not met.
     pub fn check(self, lit: &Lit, attr: impl ToString, arg: impl ToString) -> Result<(), Error> {
-        if self != LiteralClass::from(lit) {
+        if self == LiteralClass::Any {
+            Ok(())
+        } else if self != LiteralClass::from(lit) {
             Err(Error::ArgValueTypeMismatch {
                 attr: attr.to_string(),
                 arg: arg.to_string(),
@@ -215,7 +217,7 @@ pub enum TypeClass {
     Tuple,
 
     /// Tokens in type position not interpreted by Syn.
-    Verbatim,
+    Any,
 }
 
 impl From<Type> for TypeClass {
@@ -240,7 +242,7 @@ impl From<&Type> for TypeClass {
             Type::Slice(_) => TypeClass::Slice,
             Type::TraitObject(_) => TypeClass::TraitObject,
             Type::Tuple(_) => TypeClass::Tuple,
-            Type::Verbatim(_) => TypeClass::Verbatim,
+            Type::Verbatim(_) => TypeClass::Any,
             _ => unreachable!(),
         }
     }
@@ -250,7 +252,9 @@ impl TypeClass {
     /// Checks the [`Type`] against current requirements, generating [`Error`]
     /// if the requirements are not met.
     pub fn check(self, ty: &Type, attr: impl ToString, arg: impl ToString) -> Result<(), Error> {
-        if self != TypeClass::from(ty) {
+        if self == TypeClass::Any {
+            Ok(())
+        } else if self != TypeClass::from(ty) {
             Err(Error::ArgValueTypeMismatch {
                 attr: attr.to_string(),
                 arg: arg.to_string(),
