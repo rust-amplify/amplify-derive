@@ -51,7 +51,8 @@ mod data;
 pub use attr::{Attr, ExtractAttr, ParametrizedAttr, SingularAttr};
 pub use cls::{LiteralClass, TypeClass, ValueClass};
 pub use data::{
-    DataInner, DataType, Derive, Element, Field, Fields, Items, NamedField, Scope, Variant, Vis,
+    DataInner, DataType, DeriveInner, Element, Field, Fields, Items, NamedField, Scope, Variant,
+    Vis,
 };
 pub use error::Error;
 pub use parsers::{MetaArg, MetaArgList, MetaArgNameValue};

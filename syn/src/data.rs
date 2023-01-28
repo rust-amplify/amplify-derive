@@ -221,7 +221,7 @@ impl From<syn::VisRestricted> for Scope {
 }
 
 impl DataType {
-    pub fn derive<D: Derive>(
+    pub fn derive<D: DeriveInner>(
         &self,
         trait_crate: Path,
         trait_name: Ident,
@@ -232,10 +232,10 @@ impl DataType {
         let ident_name = &self.name;
 
         let inner = match &self.inner {
-            DataInner::Struct(Fields::Unit) => attr.derive_unit(),
-            DataInner::Struct(Fields::Unnamed(fields)) => attr.derive_fields(fields),
-            DataInner::Struct(Fields::Named(fields)) => attr.derive_named_fields(fields),
-            DataInner::Enum(variants) => attr.derive_variants(variants),
+            DataInner::Struct(Fields::Unit) => attr.derive_unit_inner(),
+            DataInner::Struct(Fields::Unnamed(fields)) => attr.derive_tuple_inner(fields),
+            DataInner::Struct(Fields::Named(fields)) => attr.derive_struct_inner(fields),
+            DataInner::Enum(variants) => attr.derive_enum_inner(variants),
             DataInner::Union(_) => Err(syn::Error::new(
                 Span::call_site(),
                 format!(
@@ -264,9 +264,9 @@ impl DataType {
     }
 }
 
-pub trait Derive {
-    fn derive_unit(&self) -> syn::Result<TokenStream2>;
-    fn derive_named_fields(&self, fields: &Items<NamedField>) -> syn::Result<TokenStream2>;
-    fn derive_fields(&self, fields: &Items<Field>) -> syn::Result<TokenStream2>;
-    fn derive_variants(&self, fields: &Items<Variant>) -> syn::Result<TokenStream2>;
+pub trait DeriveInner {
+    fn derive_unit_inner(&self) -> syn::Result<TokenStream2>;
+    fn derive_struct_inner(&self, fields: &Items<NamedField>) -> syn::Result<TokenStream2>;
+    fn derive_tuple_inner(&self, fields: &Items<Field>) -> syn::Result<TokenStream2>;
+    fn derive_enum_inner(&self, fields: &Items<Variant>) -> syn::Result<TokenStream2>;
 }
