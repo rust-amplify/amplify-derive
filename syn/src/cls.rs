@@ -98,7 +98,9 @@ impl ValueClass {
         match (self, value) {
             (ValueClass::Literal(lit), ArgValue::Literal(ref value)) => lit.check(value, attr, arg),
             (ValueClass::Type(ty), ArgValue::Type(ref value)) => ty.check(value, attr, arg),
-            (ValueClass::Expr, ArgValue::Type(_)) | (ValueClass::Expr, ArgValue::Expr(_)) => Ok(()),
+            (ValueClass::Expr, ArgValue::Type(_) | ArgValue::Expr(_) | ArgValue::Literal(_)) => {
+                Ok(())
+            }
             _ => Err(Error::ArgValueTypeMismatch {
                 attr: attr.to_string(),
                 arg: arg.to_string(),

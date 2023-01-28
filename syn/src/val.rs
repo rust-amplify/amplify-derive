@@ -317,11 +317,14 @@ impl TryFrom<ArgValue> for Expr {
 
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
+            ArgValue::Literal(lit) => Expr::parse
+                .parse(lit.to_token_stream().into())
+                .map_err(Error::from),
             ArgValue::Type(ty) => Expr::parse
                 .parse(ty.to_token_stream().into())
                 .map_err(Error::from),
             ArgValue::Expr(expr) => Ok(expr),
-            _ => Err(Error::ArgValueMustBeExpr),
+            ArgValue::None => Err(Error::ArgValueMustBeExpr),
         }
     }
 }
@@ -446,8 +449,13 @@ impl TryFrom<ArgValue> for Option<Expr> {
                     .map_err(Error::from),
             )
             .transpose(),
+            ArgValue::Literal(lit) => Some(
+                Expr::parse
+                    .parse(lit.into_token_stream().into())
+                    .map_err(Error::from),
+            )
+            .transpose(),
             ArgValue::None => Ok(None),
-            _ => Err(Error::ArgValueMustBeExpr),
         }
     }
 }
