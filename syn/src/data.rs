@@ -262,8 +262,6 @@ impl DataType {
             }
         };
 
-        eprintln!("{}", tokens.to_string());
-
         Ok(tokens)
     }
 }
