@@ -54,6 +54,12 @@ pub enum FieldKind {
     Unnamed,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum EnumKind {
+    Primitive,
+    Associated,
+}
+
 impl Fields {
     pub fn is_unit(&self) -> bool { matches!(self, Fields::Unit) }
 
@@ -88,6 +94,16 @@ impl<'a, E: Element> IntoIterator for &'a Items<E> {
     type IntoIter = slice::Iter<'a, E>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
+
+impl Items<Variant> {
+    pub fn enum_kind(&self) -> EnumKind {
+        if self.iter().all(|var| var.fields.is_unit()) {
+            EnumKind::Primitive
+        } else {
+            EnumKind::Associated
+        }
+    }
 }
 
 #[derive(Clone)]
