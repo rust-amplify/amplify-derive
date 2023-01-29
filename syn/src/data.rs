@@ -48,8 +48,22 @@ pub enum Fields {
     Unnamed(Items<Field>),
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum FieldKind {
+    Named,
+    Unnamed,
+}
+
 impl Fields {
     pub fn is_unit(&self) -> bool { matches!(self, Fields::Unit) }
+
+    pub fn kind(&self) -> FieldKind {
+        match self {
+            Fields::Unit => FieldKind::Unnamed,
+            Fields::Named(_) => FieldKind::Named,
+            Fields::Unnamed(_) => FieldKind::Unnamed,
+        }
+    }
 }
 
 pub trait Element: Sized {
