@@ -234,7 +234,7 @@ impl Technique {
         match self {
             Technique::FromTrait(fmt) => fmt.into_token_stream2(span),
             Technique::FromMethod(path) => quote_spanned! { span =>
-                f.write_str(& #path (self))
+                ::core::fmt::Display::fmt(&#path(self), f)
             },
             Technique::WithFormat(fmt, fmt_alt) => {
                 let format = if alt && fmt_alt.is_some() {
