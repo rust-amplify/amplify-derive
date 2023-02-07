@@ -538,7 +538,7 @@ impl ParametrizedAttr {
     /// fusion takes a nested meta data.
     #[inline]
     pub fn fuse(&mut self, attr: &Attribute) -> Result<(), Error> {
-        let args = MetaArgList::parse.parse(attr.tokens.clone().into())?;
+        let args = MetaArgList::parse.parse2(attr.tokens.clone().into())?;
         for arg in args.list {
             match arg {
                 // `#[ident("literal", ...)]`

@@ -118,7 +118,7 @@ impl From<Option<LitStr>> for ArgValue {
 
 impl From<Ident> for ArgValue {
     fn from(ident: Ident) -> Self {
-        Path::from(PathSegment::parse.parse(quote! { #ident }.into()).unwrap()).into()
+        Path::from(PathSegment::parse.parse2(quote! { #ident }.into()).unwrap()).into()
     }
 }
 
@@ -304,7 +304,7 @@ impl TryFrom<ArgValue> for Path {
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
             ArgValue::Expr(expr) => Path::parse
-                .parse(expr.to_token_stream().into())
+                .parse2(expr.to_token_stream().into())
                 .map_err(Error::from),
             ArgValue::Type(Type::Path(ty)) => Ok(ty.path),
             _ => Err(Error::ArgValueMustBeType),
@@ -318,10 +318,10 @@ impl TryFrom<ArgValue> for Expr {
     fn try_from(value: ArgValue) -> Result<Self, Self::Error> {
         match value {
             ArgValue::Literal(lit) => Expr::parse
-                .parse(lit.to_token_stream().into())
+                .parse2(lit.to_token_stream().into())
                 .map_err(Error::from),
             ArgValue::Type(ty) => Expr::parse
-                .parse(ty.to_token_stream().into())
+                .parse2(ty.to_token_stream().into())
                 .map_err(Error::from),
             ArgValue::Expr(expr) => Ok(expr),
             ArgValue::None => Err(Error::ArgValueMustBeExpr),
@@ -427,7 +427,7 @@ impl TryFrom<ArgValue> for Option<Path> {
             ArgValue::Type(Type::Path(ty)) => Ok(Some(ty.path)),
             ArgValue::Expr(expr) => Some(
                 Path::parse
-                    .parse(expr.into_token_stream().into())
+                    .parse2(expr.into_token_stream().into())
                     .map_err(Error::from),
             )
             .transpose(),
@@ -445,13 +445,13 @@ impl TryFrom<ArgValue> for Option<Expr> {
             ArgValue::Expr(expr) => Ok(Some(expr)),
             ArgValue::Type(ty) => Some(
                 Expr::parse
-                    .parse(ty.into_token_stream().into())
+                    .parse2(ty.into_token_stream().into())
                     .map_err(Error::from),
             )
             .transpose(),
             ArgValue::Literal(lit) => Some(
                 Expr::parse
-                    .parse(lit.into_token_stream().into())
+                    .parse2(lit.into_token_stream().into())
                     .map_err(Error::from),
             )
             .transpose(),
