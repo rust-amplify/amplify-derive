@@ -40,3 +40,18 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
       - name: Test in headless Chrome
         run: wasm-pack test --headless --chrome
+  wasm-dependency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.3.0
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Test building dependency
+        run: cd test/wasm && wasm-pack build
