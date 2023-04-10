@@ -3,7 +3,7 @@ members = [".", "syn"]
 
 [package]
 name = "amplify_derive"
-version = "4.0.0-alpha.6"
+version = "3.0.0"
 description = "Powerful derivation macros; part of the 'amplify' library"
 authors = [
     "Dr. Maxim Orlovsky <orlovsky@ubideco.org>",
@@ -25,10 +25,10 @@ proc-macro = true
 quote = "1"
 syn = "1.0.103"
 proc-macro2 = "1"
-amplify_syn = { version = "2.0.0-beta.2", path = "syn" }
+amplify_syn = { version = "2.0.0", path = "syn" }
 
 [dev-dependencies]
-amplify = { version = "4.0.0-beta.16" }
+amplify = { version = "4.0.0-beta.22" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
