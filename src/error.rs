@@ -22,9 +22,11 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let ident_name = &input.ident;
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics ::std::error::Error for #ident_name #ty_generics #where_clause {
         }
 
+        #[automatically_derived]
         impl #impl_generics From<#ident_name #ty_generics> for String #where_clause {
             fn from(err: #ident_name #ty_generics) -> Self {
                 err.to_string()

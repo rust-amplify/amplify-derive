@@ -287,6 +287,7 @@ impl DataType {
         }?;
 
         let tokens = quote! {
+            #[automatically_derived]
             impl #impl_generics #trait_crate::#trait_name for #ident_name #ty_generics #where_clause {
                 #inner
             }

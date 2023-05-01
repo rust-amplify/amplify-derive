@@ -518,6 +518,7 @@ fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> 
     };
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics ::core::fmt::Display for #ident_name #ty_generics #where_clause {
             fn fmt(&self, mut f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #display
@@ -740,6 +741,7 @@ fn inner_enum(input: &DeriveInput, data: &DataEnum) -> Result<TokenStream2> {
     };
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics ::core::fmt::Display for #ident_name #ty_generics #where_clause {
             #![allow(clippy::if_same_then_else)]
             fn fmt(&self, mut f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -809,6 +811,7 @@ fn inner_union(input: &DeriveInput, data: &DataUnion) -> Result<TokenStream2> {
         },
     };
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics ::core::fmt::Display for #ident_name #ty_generics #where_clause {
             #![allow(clippy::if_same_then_else)]
             fn fmt(&self, mut f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {

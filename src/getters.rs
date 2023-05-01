@@ -320,6 +320,7 @@ fn derive_struct_impl(
     };
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics #struct_name #ty_generics #where_clause {
             #( #methods )*
         }
