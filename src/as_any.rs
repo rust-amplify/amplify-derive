@@ -21,6 +21,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let ident_name = &input.ident;
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics ::amplify::AsAny for #ident_name #ty_generics #where_clause {
            fn as_any(&self) -> &dyn ::core::any::Any {
                 self as &dyn ::core::any::Any

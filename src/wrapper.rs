@@ -218,6 +218,7 @@ impl Wrapper {
 
         match self {
             Wrapper::FromStr => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::str::FromStr for #ident_name #ty_generics #where_clause
                 {
                     type Err = <<Self as #amplify_crate::Wrapper>::Inner as ::core::str::FromStr>::Err;
@@ -233,6 +234,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Display => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::Display for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -243,6 +245,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Debug => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::Debug for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -253,6 +256,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Octal => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::Octal for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -263,6 +267,7 @@ impl Wrapper {
                 }
             },
             Wrapper::FromHex => quote! {
+                #[automatically_derived]
                 impl #impl_generics #amplify_crate::hex::FromHex for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -278,6 +283,7 @@ impl Wrapper {
                 }
             },
             Wrapper::LowerHex => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::LowerHex for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -288,6 +294,7 @@ impl Wrapper {
                 }
             },
             Wrapper::UpperHex => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::UpperHex for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -298,6 +305,7 @@ impl Wrapper {
                 }
             },
             Wrapper::LowerExp => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::LowerExp for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -308,6 +316,7 @@ impl Wrapper {
                 }
             },
             Wrapper::UpperExp => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::fmt::UpperExp for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -318,6 +327,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Deref => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Deref for #ident_name #ty_generics #where_clause
                 {
                     type Target = <Self as #amplify_crate::Wrapper>::Inner;
@@ -329,6 +339,7 @@ impl Wrapper {
                 }
             },
             Wrapper::BorrowSlice => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::borrow::Borrow<[u8]> for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -344,6 +355,7 @@ impl Wrapper {
                     Some(_) => quote! { #where_clause },
                 };
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<usize> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<usize>>::Output;
@@ -358,6 +370,7 @@ impl Wrapper {
             }
             Wrapper::IndexRange => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::Range<usize>> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::Range<usize>>>::Output;
@@ -372,6 +385,7 @@ impl Wrapper {
             }
             Wrapper::IndexFrom => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFrom<usize>> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeFrom<usize>>>::Output;
@@ -386,6 +400,7 @@ impl Wrapper {
             }
             Wrapper::IndexTo => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeTo<usize>> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeTo<usize>>>::Output;
@@ -400,6 +415,7 @@ impl Wrapper {
             }
             Wrapper::IndexInclusive => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
@@ -414,6 +430,7 @@ impl Wrapper {
             }
             Wrapper::IndexToInclusive => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeToInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
@@ -428,6 +445,7 @@ impl Wrapper {
             }
             Wrapper::IndexFull => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFull> for #ident_name #ty_generics #where_clause
                     {
                         type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeFull>>::Output;
@@ -441,6 +459,7 @@ impl Wrapper {
                 }
             }
             Wrapper::Neg => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Neg for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -453,6 +472,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Not => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Not for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -465,6 +485,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Add => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Add for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -477,6 +498,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Sub => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Sub for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -489,6 +511,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Mul => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Mul for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -501,6 +524,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Div => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Div for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -513,6 +537,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Rem => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Rem for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -525,6 +550,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Shl => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Shl for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -537,6 +563,7 @@ impl Wrapper {
                 }
             },
             Wrapper::Shr => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::Shr for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -549,6 +576,7 @@ impl Wrapper {
                 }
             },
             Wrapper::BitAnd => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitAnd for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -561,6 +589,7 @@ impl Wrapper {
                 }
             },
             Wrapper::BitOr => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitOr for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -573,6 +602,7 @@ impl Wrapper {
                 }
             },
             Wrapper::BitXor => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitXor for #ident_name #ty_generics #where_clause
                 {
                     type Output = Self;
@@ -674,6 +704,7 @@ impl WrapperMut {
 
         match self {
             WrapperMut::DerefMut => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::DerefMut for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -684,6 +715,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::BorrowSliceMut => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::borrow::BorrowMut<[u8]> for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -699,6 +731,7 @@ impl WrapperMut {
                     Some(_) => quote! { #where_clause },
                 };
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<usize> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -711,6 +744,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexRangeMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::Range<usize>> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -723,6 +757,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexFromMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeFrom<usize>> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -735,6 +770,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexToMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeTo<usize>> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -747,6 +783,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexInclusiveMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -759,6 +796,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexToInclusiveMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeToInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -771,6 +809,7 @@ impl WrapperMut {
             }
             WrapperMut::IndexFullMut => {
                 quote! {
+                    #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeFull> for #ident_name #ty_generics #where_clause
                     {
                         #[inline]
@@ -782,6 +821,7 @@ impl WrapperMut {
                 }
             }
             WrapperMut::AddAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::AddAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -792,6 +832,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::SubAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::SubAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -802,6 +843,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::MulAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::MulAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -812,6 +854,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::DivAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::DivAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -821,7 +864,8 @@ impl WrapperMut {
                     }
                 }
             },
-            WrapperMut::RemAssign => quote! {4
+            WrapperMut::RemAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::RemAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -832,6 +876,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::ShlAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::ShlAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -842,6 +887,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::ShrAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::ShrAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -852,6 +898,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::BitAndAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitAndAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -862,6 +909,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::BitOrAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitOrAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -872,6 +920,7 @@ impl WrapperMut {
                 }
             },
             WrapperMut::BitXorAssign => quote! {
+                #[automatically_derived]
                 impl #impl_generics ::core::ops::BitXorAssign for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
@@ -897,6 +946,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let wrapper_derive = wrappers.iter().map(|w| w.into_token_stream2(&input));
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics #amplify_crate::Wrapper for #ident_name #ty_generics #where_clause {
             type Inner = #from;
 
@@ -916,6 +966,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for #from #where_clause {
             #[inline]
             fn from(wrapped: #ident_name #ty_generics) -> Self {
@@ -924,6 +975,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics ::core::convert::AsRef<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
             #[inline]
             fn as_ref(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
@@ -932,6 +984,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics ::core::borrow::Borrow<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
             #[inline]
             fn borrow(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
@@ -955,6 +1008,7 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
     let wrapper_derive = wrappers.iter().map(|w| w.into_token_stream2(&input));
 
     Ok(quote! {
+        #[automatically_derived]
         impl #impl_generics #amplify_crate::WrapperMut for #ident_name #ty_generics #where_clause {
             #[inline]
             fn as_inner_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
@@ -962,6 +1016,7 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
             #[inline]
             fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
@@ -970,6 +1025,7 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
+        #[automatically_derived]
         impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
             #[inline]
             fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
