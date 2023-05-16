@@ -531,10 +531,10 @@ fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> 
 }
 
 fn format_field(field: &syn::Field, str_fmt: &str) -> Result<Option<TokenStream2>> {
-    if !has_formatters(field.ident.as_ref().unwrap(), str_fmt) {
+    let ident = field.ident.as_ref().unwrap();
+    if !has_formatters(ident, str_fmt) {
         return Ok(None);
     }
-    let ident = field.ident.as_ref().unwrap();
     let attr = match field.attrs.iter().find(|attr| attr.path.is_ident(NAME)) {
         Some(attr) => attr,
         None => return Ok(Some(quote_spanned! { ident.span() => #ident = self.#ident })),
