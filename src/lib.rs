@@ -105,6 +105,12 @@ use syn::DeriveInput;
 ///     #[display("({x}, {y})")]
 ///     struct Point { x: u32, y: u32 }
 ///     assert_eq!(format!("{}", Point { x: 0, y: 1 }), "(0, 1)");
+///
+///     #[derive(Display)]
+///     #[display("[{vec}]")]
+///     struct Data { #[display(separator = ", ")] vec: Vec<String> }
+///     assert_eq!(format!("{}", Data { vec: vec!["foo".into(), "bar".into()]}),
+///         "[foo, bar]");
 ///    ```
 /// 4. Support for alternative formatting with `alt` parameter:
 ///    ```

@@ -23,6 +23,7 @@ use syn::{
 
 const NAME: &str = "display";
 const EXAMPLE: &str = r#"#[display("format {} string" | Trait | Type::function)]"#;
+const FIELD_EXAMPLE: &str = r#"#[display(separator = "...")]"#;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum FormattingTrait {
@@ -439,25 +440,27 @@ fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> 
             }
         }
         (Fields::Named(fields), _) => {
-            let f = fields.named.iter().map(|f| f.ident.as_ref().unwrap());
-            let idents = f
-                .clone()
-                .filter(|ident| has_formatters(ident, &str_fmt))
-                .collect::<Vec<_>>();
+            let idents = fields
+                .named
+                .iter()
+                .filter_map(|field| format_field(field, &str_fmt).transpose())
+                .collect::<Result<Vec<_>>>()?;
             if str_fmt == str_alt {
                 quote_spanned! { fields.span() =>
-                    write!(f, #tokens_fmt, #( #idents = self.#idents, )*)
+                    write!(f, #tokens_fmt, #( #idents, )*)
                 }
             } else {
-                let idents_alt = f
-                    .filter(|ident| has_formatters(ident, &str_alt))
-                    .collect::<Vec<_>>();
+                let idents_alt = fields
+                    .named
+                    .iter()
+                    .filter_map(|field| format_field(field, &str_alt).transpose())
+                    .collect::<Result<Vec<_>>>()?;
                 if str_fmt != str_alt {
                     quote_spanned! { fields.span() =>
                         if !f.alternate() {
-                            write!(f, #tokens_fmt, #( #idents = self.#idents, )*)
+                            write!(f, #tokens_fmt, #( #idents, )*)
                         } else {
-                            write!(f, #tokens_alt, #( #idents_alt = self.#idents_alt, )*)
+                            write!(f, #tokens_alt, #( #idents_alt, )*)
                         }
                     }
                 } else {
@@ -525,6 +528,35 @@ fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> 
             }
         }
     })
+}
+
+fn format_field(field: &syn::Field, str_fmt: &str) -> Result<Option<TokenStream2>> {
+    let ident = field.ident.as_ref().unwrap();
+    if !has_formatters(ident, str_fmt) {
+        return Ok(None);
+    }
+    let attr = match field.attrs.iter().find(|attr| attr.path.is_ident(NAME)) {
+        Some(attr) => attr,
+        None => return Ok(Some(quote_spanned! { ident.span() => #ident = self.#ident })),
+    };
+    match attr.parse_meta().unwrap() {
+        Meta::List(meta_list) => {
+            if meta_list.nested.len() > 1 {
+                return Err(attr_err!(attr, NAME, "too many arguments", FIELD_EXAMPLE));
+            }
+            match meta_list.nested.first() {
+                Some(NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                    path,
+                    lit: Lit::Str(separator),
+                    ..
+                }))) if path.is_ident("separator") => Ok(Some(
+                    quote_spanned! { ident.span() => #ident = self.#ident.join(#separator) },
+                )),
+                _ => Err(attr_err!(attr, NAME, "unexpected argument", FIELD_EXAMPLE)),
+            }
+        }
+        _ => Err(attr_err!(attr, NAME, "expected an argument", FIELD_EXAMPLE)),
+    }
 }
 
 fn inner_enum(input: &DeriveInput, data: &DataEnum) -> Result<TokenStream2> {
