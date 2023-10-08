@@ -779,7 +779,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn as_mut(&mut self) -> &mut [u8] {
-                        &mut self.#field
+                        AsMut::<[u8]>::as_mut(&mut self.#field)
                     }
                 }
             },
@@ -798,7 +798,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn borrow_mut(&mut self) -> &mut [u8] {
-                        &mut self.#field
+                        ::core::borrow::BorrowMut::<[u8]>::borrow_mut(&mut self.#field)
                     }
                 }
             },
