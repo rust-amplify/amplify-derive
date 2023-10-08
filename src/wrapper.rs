@@ -301,7 +301,7 @@ impl Wrapper {
                             + ExactSizeIterator
                             + DoubleEndedIterator,
                     {
-                        #amplify_crate::hex::FromHex::from_byte_iter(iter).map(Self::from)
+                        <#from as #amplify_crate::hex::FromHex>::from_byte_iter(iter).map(Self::from)
                     }
                 }
             },
