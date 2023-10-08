@@ -123,6 +123,7 @@ impl FromPath for Wrapper {
                     "Display" => Some(Wrapper::Display),
                     "Debug" => Some(Wrapper::Debug),
                     "Octal" => Some(Wrapper::Octal),
+                    "FromHex" => Some(Wrapper::FromHex),
                     "LowerHex" => Some(Wrapper::LowerHex),
                     "UpperHex" => Some(Wrapper::UpperHex),
                     "LowerExp" => Some(Wrapper::LowerExp),
