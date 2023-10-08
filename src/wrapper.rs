@@ -24,8 +24,9 @@ use crate::util::get_amplify_crate;
 const NAME: &str = "wrapper";
 const EXAMPLE: &str = r#"#[wrapper(LowerHex, Add)]"#;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
 enum Wrapper {
+    NoRefs,
     // Formatting
     FromStr,
     Display,
@@ -38,6 +39,8 @@ enum Wrapper {
     UpperExp,
     // References
     Deref,
+    AsRef,
+    Borrow,
     BorrowSlice,
     // Indexes
     Index,
@@ -71,10 +74,13 @@ enum Wrapper {
     BitOps,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
 enum WrapperMut {
+    NoRefs,
     // References
     DerefMut,
+    AsMut,
+    BorrowMut,
     BorrowSliceMut,
     // Indexes
     IndexMut,
@@ -103,9 +109,12 @@ enum WrapperMut {
     BitAssign,
 }
 
-pub trait FromPath: Sized + Copy {
+pub trait FromPath: Sized + Copy + Ord {
     const IDENT: &'static str;
     const DERIVE: &'static str;
+    const NO_REFS: Self;
+    fn default_set() -> Vec<Self>;
+    fn is_not_ref(&self) -> bool;
     fn from_path(path: &Path) -> Result<Option<Self>>;
     fn populate(self, list: &mut Vec<Self>);
 }
@@ -113,6 +122,15 @@ pub trait FromPath: Sized + Copy {
 impl FromPath for Wrapper {
     const IDENT: &'static str = "wrapper";
     const DERIVE: &'static str = "Wrapper";
+    const NO_REFS: Self = Self::NoRefs;
+
+    fn default_set() -> Vec<Self> {
+        vec![Wrapper::AsRef, Wrapper::Borrow]
+    }
+
+    fn is_not_ref(&self) -> bool {
+        *self != Wrapper::AsRef && *self != Wrapper::Borrow
+    }
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
@@ -128,7 +146,10 @@ impl FromPath for Wrapper {
                     "UpperHex" => Some(Wrapper::UpperHex),
                     "LowerExp" => Some(Wrapper::LowerExp),
                     "UpperExp" => Some(Wrapper::UpperExp),
+                    "NoRefs" => Some(Wrapper::NoRefs),
+                    "AsRef" => Some(Wrapper::AsRef),
                     "Deref" => Some(Wrapper::Deref),
+                    "Borrow" => Some(Wrapper::Borrow),
                     "BorrowSlice" => Some(Wrapper::BorrowSlice),
                     "Index" => Some(Wrapper::Index),
                     "IndexRange" => Some(Wrapper::IndexRange),
@@ -334,6 +355,26 @@ impl Wrapper {
                     type Target = <Self as #amplify_crate::Wrapper>::Inner;
                     #[inline]
                     fn deref(&self) -> &Self::Target {
+                        use #amplify_crate::Wrapper;
+                        Wrapper::as_inner(self)
+                    }
+                }
+            },
+            Wrapper::AsRef => quote! {
+                #[automatically_derived]
+                impl #impl_generics ::core::convert::AsRef<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                    #[inline]
+                    fn as_ref(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
+                        use #amplify_crate::Wrapper;
+                        Wrapper::as_inner(self)
+                    }
+                }
+            },
+            Wrapper::Borrow => quote! {
+                #[automatically_derived]
+                impl #impl_generics ::core::borrow::Borrow<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                    #[inline]
+                    fn borrow(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
                         use #amplify_crate::Wrapper;
                         Wrapper::as_inner(self)
                     }
@@ -623,13 +664,25 @@ impl Wrapper {
 impl FromPath for WrapperMut {
     const IDENT: &'static str = "wrapper_mut";
     const DERIVE: &'static str = "WrapperMut";
+    const NO_REFS: Self = Self::NoRefs;
+
+    fn default_set() -> Vec<Self> {
+        vec![WrapperMut::AsMut, WrapperMut::BorrowMut]
+    }
+
+    fn is_not_ref(&self) -> bool {
+        *self != WrapperMut::AsMut && *self != WrapperMut::BorrowMut
+    }
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
             Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
             |segment| {
                 Ok(match segment.ident.to_string().as_str() {
+                    "NoRefs" => Some(WrapperMut::NoRefs),
                     "DerefMut" => Some(WrapperMut::DerefMut),
+                    "AsMut" => Some(WrapperMut::AsMut),
+                    "BorrowMut" => Some(WrapperMut::BorrowMut),
                     "BorrowSliceMut" => Some(WrapperMut::BorrowSliceMut),
                     "IndexMut" => Some(WrapperMut::IndexMut),
                     "IndexRangeMut" => Some(WrapperMut::IndexRangeMut),
@@ -710,6 +763,26 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn deref_mut(&mut self) -> &mut Self::Target {
+                        use #amplify_crate::WrapperMut;
+                        WrapperMut::as_inner_mut(self)
+                    }
+                }
+            },
+            WrapperMut::AsMut => quote! {
+                #[automatically_derived]
+                impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                    #[inline]
+                    fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
+                        use #amplify_crate::WrapperMut;
+                        WrapperMut::as_inner_mut(self)
+                    }
+                }
+            },
+            WrapperMut::BorrowMut => quote! {
+                #[automatically_derived]
+                impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                    #[inline]
+                    fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
                         use #amplify_crate::WrapperMut;
                         WrapperMut::as_inner_mut(self)
                     }
@@ -976,24 +1049,6 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
-        #[automatically_derived]
-        impl #impl_generics ::core::convert::AsRef<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-            #[inline]
-            fn as_ref(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
-                use #amplify_crate::Wrapper;
-                Wrapper::as_inner(self)
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics ::core::borrow::Borrow<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-            #[inline]
-            fn borrow(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
-                use #amplify_crate::Wrapper;
-                Wrapper::as_inner(self)
-            }
-        }
-
         #( #wrapper_derive )*
     })
 }
@@ -1014,24 +1069,6 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
             #[inline]
             fn as_inner_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
                 &mut self.#field
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-            #[inline]
-            fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                use #amplify_crate::WrapperMut;
-                WrapperMut::as_inner_mut(self)
-            }
-        }
-
-        #[automatically_derived]
-        impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-            #[inline]
-            fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                use #amplify_crate::WrapperMut;
-                WrapperMut::as_inner_mut(self)
             }
         }
 
@@ -1120,7 +1157,7 @@ fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
 }
 
 fn get_wrappers<T: FromPath>(input: &DeriveInput) -> Result<Vec<T>> {
-    let mut wrappers = vec![];
+    let mut wrappers = T::default_set();
     const WRAPPER_DERIVE_ERR: &str = "Wrapper attributes must be in a form of type list";
     for attr in input
         .attrs
@@ -1145,6 +1182,9 @@ fn get_wrappers<T: FromPath>(input: &DeriveInput) -> Result<Vec<T>> {
             }
             _ => return Err(attr_err!(attr, WRAPPER_DERIVE_ERR)),
         }
+    }
+    if wrappers.contains(&T::NO_REFS) {
+        wrappers = wrappers.into_iter().filter(T::is_not_ref).collect();
     }
     Ok(wrappers)
 }

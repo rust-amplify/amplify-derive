@@ -648,6 +648,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// * `amplify::Wrapper`
 /// * [`AsRef`]
 /// * [`core::borrow::Borrow`]
+/// You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:
@@ -775,6 +776,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * `amplify::WrapperMut`
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
+/// You may skip `AsMut` and `BorrowMut` implementations with `#[wrapper_mut(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:
