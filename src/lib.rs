@@ -750,12 +750,12 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// assert_eq!(w.into_inner(), HashMap::<usize, Vec<u8>>::default());
 /// ```
 ///
-/// Wrappers for indexable types
+/// Wrappers for indexable types, which do not allow explicit construction using `From` converters:
 /// ```
 /// # #[macro_use] extern crate amplify_derive;
 ///
-/// #[derive(Wrapper, From)]
-/// #[wrapper(Index, RangeOps)]
+/// #[derive(Wrapper)]
+/// #[wrapper(NoFrom, Index, RangeOps)]
 /// struct VecNewtype(Vec<u8>);
 /// ```
 #[proc_macro_derive(Wrapper, attributes(wrap, wrapper, amplify_crate))]
