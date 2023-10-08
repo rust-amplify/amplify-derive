@@ -654,6 +654,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `Deref` for implementing [`core::ops::Deref`]
+///    * `AsSlice` for implementing [`AsRef`]`<[u8]>`
 ///    * `BorrowSlice` for implementing
 ///      [`core::borrow::Borrow`]`<[Self::Inner]>`
 /// 2. Formatting:
@@ -782,6 +783,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `DerefMut` for implementing [`core::ops::DerefMut`]
+///    * `AsSliceMut` for implementing [`AsMut`]`<[u8]>`
 ///    * `BorrowSliceMut` for implementing
 ///      [`core::borrow::BorrowMut`]`<[Self::Inner]>`
 /// 2. Indexed access to the inner type:

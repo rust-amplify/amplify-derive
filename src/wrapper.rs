@@ -40,6 +40,7 @@ enum Wrapper {
     // References
     Deref,
     AsRef,
+    AsSlice,
     Borrow,
     BorrowSlice,
     // Indexes
@@ -80,6 +81,7 @@ enum WrapperMut {
     // References
     DerefMut,
     AsMut,
+    AsSliceMut,
     BorrowMut,
     BorrowSliceMut,
     // Indexes
@@ -148,6 +150,7 @@ impl FromPath for Wrapper {
                     "UpperExp" => Some(Wrapper::UpperExp),
                     "NoRefs" => Some(Wrapper::NoRefs),
                     "AsRef" => Some(Wrapper::AsRef),
+                    "AsSlice" => Some(Wrapper::AsSlice),
                     "Deref" => Some(Wrapper::Deref),
                     "Borrow" => Some(Wrapper::Borrow),
                     "BorrowSlice" => Some(Wrapper::BorrowSlice),
@@ -367,6 +370,17 @@ impl Wrapper {
                     fn as_ref(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
                         use #amplify_crate::Wrapper;
                         Wrapper::as_inner(self)
+                    }
+                }
+            },
+            Wrapper::AsSlice => quote! {
+                #[automatically_derived]
+                impl #impl_generics AsRef<[u8]> for #ident_name #ty_generics #where_clause
+                {
+                    #[inline]
+                    fn as_ref(&self) -> &[u8] {
+                        use #amplify_crate::Wrapper;
+                        AsRef::<[u8]>::as_ref(Wrapper::as_inner(self))
                     }
                 }
             },
@@ -682,6 +696,7 @@ impl FromPath for WrapperMut {
                     "NoRefs" => Some(WrapperMut::NoRefs),
                     "DerefMut" => Some(WrapperMut::DerefMut),
                     "AsMut" => Some(WrapperMut::AsMut),
+                    "AsSliceMut" => Some(WrapperMut::AsSliceMut),
                     "BorrowMut" => Some(WrapperMut::BorrowMut),
                     "BorrowSliceMut" => Some(WrapperMut::BorrowSliceMut),
                     "IndexMut" => Some(WrapperMut::IndexMut),
@@ -775,6 +790,17 @@ impl WrapperMut {
                     fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
                         use #amplify_crate::WrapperMut;
                         WrapperMut::as_inner_mut(self)
+                    }
+                }
+            },
+            WrapperMut::AsSliceMut => quote! {
+                #[automatically_derived]
+                impl #impl_generics AsMut<[u8]> for #ident_name #ty_generics #where_clause
+                {
+                    #[inline]
+                    fn as_mut(&mut self) -> &mut [u8] {
+                        use #amplify_crate::WrapperMut;
+                        AsMut::<[u8]>::as_mut(WrapperMut::as_inner_mut(self))
                     }
                 }
             },
