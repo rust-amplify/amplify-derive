@@ -641,7 +641,14 @@ impl Wrapper {
                     }
                 }
             },
-            _ => unreachable!(),
+            Wrapper::NoRefs
+            | Wrapper::Hex
+            | Wrapper::Exp
+            | Wrapper::NumberFmt
+            | Wrapper::RangeOps
+            | Wrapper::MathOps
+            | Wrapper::BoolOps
+            | Wrapper::BitOps => unreachable!(),
         }
     }
 }
@@ -984,7 +991,11 @@ impl WrapperMut {
                     }
                 }
             },
-            _ => unreachable!(),
+            WrapperMut::NoRefs
+            | WrapperMut::RangeMut
+            | WrapperMut::MathAssign
+            | WrapperMut::BoolAssign
+            | WrapperMut::BitAssign => unreachable!(),
         }
     }
 }
