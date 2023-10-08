@@ -720,7 +720,6 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// Simple wrapper:
 /// ```
 /// # #[macro_use] extern crate amplify_derive;
-/// use amplify::Wrapper;
 ///
 /// #[derive(Wrapper, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Debug, Display)]
 /// #[display(inner)]
@@ -734,9 +733,8 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// # #[macro_use] extern crate amplify_derive;
 /// # use std::collections::HashMap;
 /// # use std::fmt::Debug;
+/// use amplify::Inner;
 /// use std::marker::PhantomData;
-///
-/// use amplify::Wrapper;
 ///
 /// #[derive(Clone, Wrapper, Default, From)]
 /// #[wrapper(Debug)]
@@ -755,7 +753,6 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// Wrappers for indexable types
 /// ```
 /// # #[macro_use] extern crate amplify_derive;
-/// use amplify::Wrapper;
 ///
 /// #[derive(Wrapper, From)]
 /// #[wrapper(Index, RangeOps)]
@@ -830,7 +827,6 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///
 /// ```
 /// # #[macro_use] extern crate amplify_derive;
-/// use amplify::{Wrapper, WrapperMut};
 ///
 /// #[derive(
 ///     Wrapper, WrapperMut, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Debug,

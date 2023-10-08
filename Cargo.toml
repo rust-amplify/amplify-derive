@@ -28,7 +28,7 @@ proc-macro2 = "1"
 amplify_syn = { version = "2.0.1", path = "syn" }
 
 [dev-dependencies]
-amplify = { version = "4.0.0" }
+amplify = { version = "4.4.0", git = "https://github.com/rust-amplify/rust-amplify", branch = "wrapper" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
