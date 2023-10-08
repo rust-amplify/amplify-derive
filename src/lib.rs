@@ -836,7 +836,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///     Display
 /// )]
 /// #[display(inner)]
-/// #[wrapper(NumberFmt, MathOps, BoolOps)]
+/// #[wrapper(NumberFmt, MathOps, BoolOps, FromStr)]
 /// #[wrapper_mut(MathAssign, BitAssign)]
 /// struct Int64(i64);
 /// ```

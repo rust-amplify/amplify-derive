@@ -256,7 +256,7 @@ impl Wrapper {
                     #[inline]
                     fn from_str(s: &str) -> Result<Self, Self::Err> {
                         use ::core::str::FromStr;
-                        FromStr::from_str(s).map(Self::from)
+                        <#from as FromStr>::from_str(s).map(Self::from)
                     }
                 }
             },
