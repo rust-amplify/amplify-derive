@@ -235,7 +235,12 @@ impl FromPath for Wrapper {
 }
 
 impl Wrapper {
-    pub fn into_token_stream2(self, input: &DeriveInput) -> TokenStream2 {
+    pub fn into_token_stream2(
+        self,
+        input: &DeriveInput,
+        from: &Type,
+        field: &TokenStream2,
+    ) -> TokenStream2 {
         let impl_generics_params = input.generics.params.clone();
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let ident_name = &input.ident;
@@ -251,10 +256,7 @@ impl Wrapper {
                     #[inline]
                     fn from_str(s: &str) -> Result<Self, Self::Err> {
                         use ::core::str::FromStr;
-                        use #amplify_crate::Wrapper;
-                        Ok(Wrapper::from_inner(
-                            <Self as #amplify_crate::Wrapper>::Inner::from_str(s)?,
-                        ))
+                        FromStr::from_str(s).map(Self::from)
                     }
                 }
             },
@@ -264,8 +266,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::Display::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::Display::fmt(&self.#field, f)
                     }
                 }
             },
@@ -275,8 +276,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::Debug::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::Debug::fmt(&self.#field, f)
                     }
                 }
             },
@@ -286,8 +286,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::Octal::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::Octal::fmt(&self.#field, f)
                     }
                 }
             },
@@ -302,8 +301,7 @@ impl Wrapper {
                             + ExactSizeIterator
                             + DoubleEndedIterator,
                     {
-                        use #amplify_crate::Wrapper;
-                        <Self as Wrapper>::Inner::from_byte_iter(iter).map(Self::from_inner)
+                        #amplify_crate::hex::FromHex::from_byte_iter(iter).map(Self::from)
                     }
                 }
             },
@@ -313,8 +311,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::LowerHex::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::LowerHex::fmt(&self.#field, f)
                     }
                 }
             },
@@ -324,8 +321,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::UpperHex::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::UpperHex::fmt(&self.#field, f)
                     }
                 }
             },
@@ -335,8 +331,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::LowerExp::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::LowerExp::fmt(&self.#field, f)
                     }
                 }
             },
@@ -346,8 +341,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        use #amplify_crate::Wrapper;
-                        ::core::fmt::UpperExp::fmt(Wrapper::as_inner(self), f)
+                        ::core::fmt::UpperExp::fmt(&self.#field, f)
                     }
                 }
             },
@@ -355,21 +349,19 @@ impl Wrapper {
                 #[automatically_derived]
                 impl #impl_generics ::core::ops::Deref for #ident_name #ty_generics #where_clause
                 {
-                    type Target = <Self as #amplify_crate::Wrapper>::Inner;
+                    type Target = #from;
                     #[inline]
                     fn deref(&self) -> &Self::Target {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::as_inner(self)
+                        &self.#field
                     }
                 }
             },
             Wrapper::AsRef => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::convert::AsRef<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::convert::AsRef<#from> for #ident_name #ty_generics #where_clause {
                     #[inline]
-                    fn as_ref(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::as_inner(self)
+                    fn as_ref(&self) -> &#from {
+                        &self.#field
                     }
                 }
             },
@@ -386,11 +378,10 @@ impl Wrapper {
             },
             Wrapper::Borrow => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::borrow::Borrow<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::borrow::Borrow<#from> for #ident_name #ty_generics #where_clause {
                     #[inline]
-                    fn borrow(&self) -> &<Self as #amplify_crate::Wrapper>::Inner {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::as_inner(self)
+                    fn borrow(&self) -> &#from {
+                        &self.#field
                     }
                 }
             },
@@ -400,8 +391,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn borrow(&self) -> &[u8] {
-                        use #amplify_crate::Wrapper;
-                        ::core::borrow::Borrow::<[u8]>::borrow(Wrapper::as_inner(self))
+                        ::core::borrow::Borrow::<[u8]>::borrow(&self.#field)
                     }
                 }
             },
@@ -414,12 +404,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<usize> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<usize>>::Output;
+                        type Output = <#from as ::core::ops::Index<usize>>::Output;
 
                         #[inline]
                         fn index(&self, index: usize) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -429,12 +418,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::Range<usize>> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::Range<usize>>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::Range<usize>>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::Range<usize>) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -444,12 +432,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFrom<usize>> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeFrom<usize>>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::RangeFrom<usize>>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -459,12 +446,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeTo<usize>> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeTo<usize>>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::RangeTo<usize>>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeTo<usize>) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -474,12 +460,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeInclusive<usize>) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -489,12 +474,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeToInclusive<usize>> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeToInclusive<usize>) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -504,12 +488,11 @@ impl Wrapper {
                     #[automatically_derived]
                     impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFull> for #ident_name #ty_generics #where_clause
                     {
-                        type Output = <<Self as #amplify_crate::Wrapper>::Inner as ::core::ops::Index<::core::ops::RangeFull>>::Output;
+                        type Output = <#from as ::core::ops::Index<::core::ops::RangeFull>>::Output;
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeFull) -> &Self::Output {
-                            use #amplify_crate::Wrapper;
-                            Wrapper::as_inner(self).index(index)
+                            self.#from.index(index)
                         }
                     }
                 }
@@ -522,8 +505,7 @@ impl Wrapper {
 
                     #[inline]
                     fn neg(self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Neg::neg(Wrapper::into_inner(self)))
+                        Self { #field: ::core::ops::Neg::neg(self.#field) }
                     }
                 }
             },
@@ -535,8 +517,7 @@ impl Wrapper {
 
                     #[inline]
                     fn not(self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Not::not(Wrapper::into_inner(self)))
+                        Self { #field: ::core::ops::Not::not(Wrapper::into_inner(self)) }
                     }
                 }
             },
@@ -548,8 +529,7 @@ impl Wrapper {
 
                     #[inline]
                     fn add(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Add::add(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Add::add(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -561,8 +541,7 @@ impl Wrapper {
 
                     #[inline]
                     fn sub(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Sub::sub(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Sub::sub(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -574,8 +553,7 @@ impl Wrapper {
 
                     #[inline]
                     fn mul(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Mul::mul(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Mul::mul(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -587,8 +565,7 @@ impl Wrapper {
 
                     #[inline]
                     fn div(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Div::div(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Div::div(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -600,8 +577,7 @@ impl Wrapper {
 
                     #[inline]
                     fn rem(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Rem::rem(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Rem::rem(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -613,8 +589,7 @@ impl Wrapper {
 
                     #[inline]
                     fn shl(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Shl::shl(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Shl::shl(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -626,8 +601,7 @@ impl Wrapper {
 
                     #[inline]
                     fn shr(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::Shr::shr(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::Shr::shr(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -639,8 +613,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitand(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::BitAnd::bitand(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::BitAnd::bitand(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -652,8 +625,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitor(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::BitOr::bitor(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::BitOr::bitor(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -665,8 +637,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitxor(self, rhs: Self) -> Self {
-                        use #amplify_crate::Wrapper;
-                        Wrapper::from_inner(::core::ops::BitXor::bitxor(Wrapper::into_inner(self), rhs.into_inner()))
+                        Self { #field: ::core::ops::BitXor::bitxor(Wrapper::into_inner(self), rhs.into_inner()) }
                     }
                 }
             },
@@ -765,7 +736,12 @@ impl FromPath for WrapperMut {
 }
 
 impl WrapperMut {
-    pub fn into_token_stream2(self, input: &DeriveInput) -> TokenStream2 {
+    pub fn into_token_stream2(
+        self,
+        input: &DeriveInput,
+        _from: &Type,
+        field: &TokenStream2,
+    ) -> TokenStream2 {
         let impl_generics_params = input.generics.params.clone();
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let ident_name = &input.ident;
@@ -778,8 +754,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn deref_mut(&mut self) -> &mut Self::Target {
-                        use #amplify_crate::WrapperMut;
-                        WrapperMut::as_inner_mut(self)
+                        &mut self.#field
                     }
                 }
             },
@@ -788,8 +763,7 @@ impl WrapperMut {
                 impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
                     fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                        use #amplify_crate::WrapperMut;
-                        WrapperMut::as_inner_mut(self)
+                        &mut self.#field
                     }
                 }
             },
@@ -799,8 +773,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn as_mut(&mut self) -> &mut [u8] {
-                        use #amplify_crate::WrapperMut;
-                        AsMut::<[u8]>::as_mut(WrapperMut::as_inner_mut(self))
+                        &mut self.#field
                     }
                 }
             },
@@ -809,8 +782,7 @@ impl WrapperMut {
                 impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
                     fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                        use #amplify_crate::WrapperMut;
-                        WrapperMut::as_inner_mut(self)
+                        &mut self.#field
                     }
                 }
             },
@@ -820,8 +792,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn borrow_mut(&mut self) -> &mut [u8] {
-                        use #amplify_crate::WrapperMut;
-                        ::core::borrow::BorrowMut::<[u8]>::borrow_mut(WrapperMut::as_inner_mut(self))
+                        &mut self.#field
                     }
                 }
             },
@@ -836,8 +807,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -849,8 +819,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::Range<usize>) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -862,8 +831,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::RangeFrom<usize>) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -875,8 +843,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::RangeTo<usize>) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -888,8 +855,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::RangeInclusive<usize>) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -901,8 +867,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::RangeToInclusive<usize>) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -914,8 +879,7 @@ impl WrapperMut {
                     {
                         #[inline]
                         fn index_mut(&mut self, index: ::core::ops::RangeFull) -> &mut Self::Output {
-                            use #amplify_crate::WrapperMut;
-                            WrapperMut::as_inner_mut(self).index_mut(index)
+                            self.as_mut().index_mut(index)
                         }
                     }
                 }
@@ -926,8 +890,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn add_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::AddAssign::add_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::AddAssign::add_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -937,8 +900,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn sub_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::SubAssign::sub_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::SubAssign::sub_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -948,8 +910,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn mul_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::MulAssign::mul_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::MulAssign::mul_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -959,8 +920,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn div_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::DivAssign::div_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::DivAssign::div_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -970,8 +930,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn rem_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::RemAssign::rem_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::RemAssign::rem_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -981,8 +940,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn shl_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::ShlAssign::shl_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::ShlAssign::shl_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -992,8 +950,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn shr_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::ShrAssign::shr_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::ShrAssign::shr_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -1003,8 +960,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitand_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::BitAndAssign::bitand_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::BitAndAssign::bitand_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -1014,8 +970,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitor_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::BitOrAssign::bitor_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::BitOrAssign::bitor_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -1025,8 +980,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitxor_assign(&mut self, rhs: Self) {
-                        use #amplify_crate::{Wrapper, WrapperMut};
-                        ::core::ops::BitXorAssign::bitxor_assign(WrapperMut::as_inner_mut(self), rhs.into_inner())
+                        ::core::ops::BitXorAssign::bitxor_assign(self.#field, rhs.#field)
                     }
                 }
             },
@@ -1043,7 +997,9 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let (field, from) = get_params(&input)?;
 
     let wrappers = get_wrappers::<Wrapper>(&input)?;
-    let wrapper_derive = wrappers.iter().map(|w| w.into_token_stream2(&input));
+    let wrapper_derive = wrappers
+        .iter()
+        .map(|w| w.into_token_stream2(&input, &from, &field));
 
     Ok(quote! {
         #[automatically_derived]
@@ -1084,10 +1040,12 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
     let ident_name = &input.ident;
     let amplify_crate = get_amplify_crate(&input);
 
-    let (field, _from) = get_params(&input)?;
+    let (field, from) = get_params(&input)?;
 
     let wrappers = get_wrappers::<WrapperMut>(&input)?;
-    let wrapper_derive = wrappers.iter().map(|w| w.into_token_stream2(&input));
+    let wrapper_derive = wrappers
+        .iter()
+        .map(|w| w.into_token_stream2(&input, &from, &field));
 
     Ok(quote! {
         #[automatically_derived]
