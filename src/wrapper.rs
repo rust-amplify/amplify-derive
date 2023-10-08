@@ -371,8 +371,7 @@ impl Wrapper {
                 {
                     #[inline]
                     fn as_ref(&self) -> &[u8] {
-                        use #amplify_crate::Wrapper;
-                        AsRef::<[u8]>::as_ref(Wrapper::as_inner(self))
+                        AsRef::<[u8]>::as_ref(&self.#field)
                     }
                 }
             },
@@ -408,7 +407,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: usize) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -422,7 +421,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::Range<usize>) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -436,7 +435,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -450,7 +449,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeTo<usize>) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -464,7 +463,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeInclusive<usize>) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -478,7 +477,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeToInclusive<usize>) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -492,7 +491,7 @@ impl Wrapper {
 
                         #[inline]
                         fn index(&self, index: ::core::ops::RangeFull) -> &Self::Output {
-                            self.#from.index(index)
+                            self.#field.index(index)
                         }
                     }
                 }
@@ -517,7 +516,7 @@ impl Wrapper {
 
                     #[inline]
                     fn not(self) -> Self {
-                        Self { #field: ::core::ops::Not::not(Wrapper::into_inner(self)) }
+                        Self { #field: ::core::ops::Not::not(self.#field) }
                     }
                 }
             },
@@ -529,7 +528,7 @@ impl Wrapper {
 
                     #[inline]
                     fn add(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Add::add(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Add::add(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -541,7 +540,7 @@ impl Wrapper {
 
                     #[inline]
                     fn sub(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Sub::sub(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Sub::sub(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -553,7 +552,7 @@ impl Wrapper {
 
                     #[inline]
                     fn mul(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Mul::mul(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Mul::mul(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -565,7 +564,7 @@ impl Wrapper {
 
                     #[inline]
                     fn div(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Div::div(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Div::div(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -577,7 +576,7 @@ impl Wrapper {
 
                     #[inline]
                     fn rem(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Rem::rem(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Rem::rem(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -589,7 +588,7 @@ impl Wrapper {
 
                     #[inline]
                     fn shl(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Shl::shl(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Shl::shl(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -601,7 +600,7 @@ impl Wrapper {
 
                     #[inline]
                     fn shr(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Shr::shr(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::Shr::shr(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -613,7 +612,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitand(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitAnd::bitand(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::BitAnd::bitand(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -625,7 +624,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitor(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitOr::bitor(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::BitOr::bitor(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -637,7 +636,7 @@ impl Wrapper {
 
                     #[inline]
                     fn bitxor(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitXor::bitxor(Wrapper::into_inner(self), rhs.into_inner()) }
+                        Self { #field: ::core::ops::BitXor::bitxor(self.#field, rhs.#field) }
                     }
                 }
             },
@@ -897,7 +896,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn add_assign(&mut self, rhs: Self) {
-                        ::core::ops::AddAssign::add_assign(self.#field, rhs.#field)
+                        ::core::ops::AddAssign::add_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -907,7 +906,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn sub_assign(&mut self, rhs: Self) {
-                        ::core::ops::SubAssign::sub_assign(self.#field, rhs.#field)
+                        ::core::ops::SubAssign::sub_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -917,7 +916,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn mul_assign(&mut self, rhs: Self) {
-                        ::core::ops::MulAssign::mul_assign(self.#field, rhs.#field)
+                        ::core::ops::MulAssign::mul_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -927,7 +926,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn div_assign(&mut self, rhs: Self) {
-                        ::core::ops::DivAssign::div_assign(self.#field, rhs.#field)
+                        ::core::ops::DivAssign::div_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -937,7 +936,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn rem_assign(&mut self, rhs: Self) {
-                        ::core::ops::RemAssign::rem_assign(self.#field, rhs.#field)
+                        ::core::ops::RemAssign::rem_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -947,7 +946,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn shl_assign(&mut self, rhs: Self) {
-                        ::core::ops::ShlAssign::shl_assign(self.#field, rhs.#field)
+                        ::core::ops::ShlAssign::shl_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -957,7 +956,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn shr_assign(&mut self, rhs: Self) {
-                        ::core::ops::ShrAssign::shr_assign(self.#field, rhs.#field)
+                        ::core::ops::ShrAssign::shr_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -967,7 +966,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitand_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitAndAssign::bitand_assign(self.#field, rhs.#field)
+                        ::core::ops::BitAndAssign::bitand_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -977,7 +976,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitor_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitOrAssign::bitor_assign(self.#field, rhs.#field)
+                        ::core::ops::BitOrAssign::bitor_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -987,7 +986,7 @@ impl WrapperMut {
                 {
                     #[inline]
                     fn bitxor_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitXorAssign::bitxor_assign(self.#field, rhs.#field)
+                        ::core::ops::BitXorAssign::bitxor_assign(&mut self.#field, rhs.#field)
                     }
                 }
             },
@@ -1037,8 +1036,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
         impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for #from #where_clause {
             #[inline]
             fn from(wrapped: #ident_name #ty_generics) -> Self {
-                use #amplify_crate::Wrapper;
-                Wrapper::into_inner(wrapped)
+                wrapped.#field
             }
         }
 
