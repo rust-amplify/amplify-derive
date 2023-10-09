@@ -126,13 +126,9 @@ impl FromPath for Wrapper {
     const DERIVE: &'static str = "Wrapper";
     const NO_REFS: Self = Self::NoRefs;
 
-    fn default_set() -> Vec<Self> {
-        vec![Wrapper::AsRef, Wrapper::Borrow]
-    }
+    fn default_set() -> Vec<Self> { vec![Wrapper::AsRef, Wrapper::Borrow] }
 
-    fn is_not_ref(&self) -> bool {
-        *self != Wrapper::AsRef && *self != Wrapper::Borrow
-    }
+    fn is_not_ref(&self) -> bool { *self != Wrapper::AsRef && *self != Wrapper::Borrow }
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
@@ -640,14 +636,14 @@ impl Wrapper {
                     }
                 }
             },
-            Wrapper::NoRefs
-            | Wrapper::Hex
-            | Wrapper::Exp
-            | Wrapper::NumberFmt
-            | Wrapper::RangeOps
-            | Wrapper::MathOps
-            | Wrapper::BoolOps
-            | Wrapper::BitOps => unreachable!(),
+            Wrapper::NoRefs |
+            Wrapper::Hex |
+            Wrapper::Exp |
+            Wrapper::NumberFmt |
+            Wrapper::RangeOps |
+            Wrapper::MathOps |
+            Wrapper::BoolOps |
+            Wrapper::BitOps => unreachable!(),
         }
     }
 }
@@ -657,13 +653,9 @@ impl FromPath for WrapperMut {
     const DERIVE: &'static str = "WrapperMut";
     const NO_REFS: Self = Self::NoRefs;
 
-    fn default_set() -> Vec<Self> {
-        vec![WrapperMut::AsMut, WrapperMut::BorrowMut]
-    }
+    fn default_set() -> Vec<Self> { vec![WrapperMut::AsMut, WrapperMut::BorrowMut] }
 
-    fn is_not_ref(&self) -> bool {
-        *self != WrapperMut::AsMut && *self != WrapperMut::BorrowMut
-    }
+    fn is_not_ref(&self) -> bool { *self != WrapperMut::AsMut && *self != WrapperMut::BorrowMut }
 
     fn from_path(path: &Path) -> Result<Option<Self>> {
         path.segments.first().map_or(
@@ -990,11 +982,11 @@ impl WrapperMut {
                     }
                 }
             },
-            WrapperMut::NoRefs
-            | WrapperMut::RangeMut
-            | WrapperMut::MathAssign
-            | WrapperMut::BoolAssign
-            | WrapperMut::BitAssign => unreachable!(),
+            WrapperMut::NoRefs |
+            WrapperMut::RangeMut |
+            WrapperMut::MathAssign |
+            WrapperMut::BoolAssign |
+            WrapperMut::BitAssign => unreachable!(),
         }
     }
 }

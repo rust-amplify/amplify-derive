@@ -777,7 +777,8 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * `amplify::WrapperMut`
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
-/// You may skip `AsMut` and `BorrowMut` implementations with `#[wrapper_mut(NoRefs)]`.
+/// You may skip `AsMut` and `BorrowMut` implementations with
+/// `#[wrapper_mut(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:

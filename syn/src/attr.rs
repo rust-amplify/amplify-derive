@@ -626,8 +626,8 @@ impl ParametrizedAttr {
     ///    [`AttrReq::path_req`], [`AttrReq::integer_req`],
     ///    [`AttrReq::float_req`], [`AttrReq::char_req`],
     ///    [`AttrReq::bytes_req`], [`AttrReq::string_req`] correspondingly.
-    /// 2. [`ParametrizedAttr::paths`] values
-    ///    matching ones specified in [`AttrReq::arg_req`] with values set to
+    /// 2. [`ParametrizedAttr::paths`] values matching ones specified in
+    ///    [`AttrReq::arg_req`] with values set to
     ///    [`crate::ListReq::Predefined::default`] are moved into
     ///    [`ParametrizedAttr::args`] field.
     pub fn check(&mut self, req: AttrReq) -> Result<(), Error> {
