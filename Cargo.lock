@@ -8,22 +8,10 @@ version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "213783efd41ed08b2861e86dd5aac633cf612f861e9222ace8b3621bd58af5c6"
 dependencies = [
- "amplify_derive 3.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "amplify_derive 3.0.1",
  "amplify_num",
  "ascii",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "amplify_derive"
-version = "3.0.1"
-dependencies = [
- "amplify",
- "amplify_syn 2.0.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "wasm-bindgen-test",
 ]
 
 [[package]]
@@ -36,6 +24,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "amplify_derive"
+version = "4.0.0"
+dependencies = [
+ "amplify",
+ "amplify_syn 2.0.1",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
