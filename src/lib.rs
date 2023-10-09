@@ -648,11 +648,13 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// * `amplify::Wrapper`
 /// * [`AsRef`]
 /// * [`core::borrow::Borrow`]
+/// You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `Deref` for implementing [`core::ops::Deref`]
+///    * `AsSlice` for implementing [`AsRef`]`<[u8]>`
 ///    * `BorrowSlice` for implementing
 ///      [`core::borrow::Borrow`]`<[Self::Inner]>`
 /// 2. Formatting:
@@ -775,11 +777,14 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * `amplify::WrapperMut`
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
+/// You may skip `AsMut` and `BorrowMut` implementations with
+/// `#[wrapper_mut(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `DerefMut` for implementing [`core::ops::DerefMut`]
+///    * `AsSliceMut` for implementing [`AsMut`]`<[u8]>`
 ///    * `BorrowSliceMut` for implementing
 ///      [`core::borrow::BorrowMut`]`<[Self::Inner]>`
 /// 2. Indexed access to the inner type:
@@ -832,7 +837,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///     Display
 /// )]
 /// #[display(inner)]
-/// #[wrapper(NumberFmt, MathOps, BoolOps)]
+/// #[wrapper(NumberFmt, MathOps, BoolOps, FromStr)]
 /// #[wrapper_mut(MathAssign, BitAssign)]
 /// struct Int64(i64);
 /// ```
