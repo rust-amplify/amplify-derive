@@ -3,7 +3,7 @@ members = [".", "syn"]
 
 [package]
 name = "amplify_derive"
-version = "4.0.0"
+version = "4.0.1"
 description = "Powerful derivation macros; part of the 'amplify' library"
 authors = [
     "Dr. Maxim Orlovsky <orlovsky@ubideco.org>",

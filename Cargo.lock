@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "amplify",
  "amplify_syn 2.0.1",
