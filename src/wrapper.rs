@@ -113,7 +113,6 @@ enum WrapperMut {
 
 pub trait FromPath: Sized + Copy + Ord {
     const IDENT: &'static str;
-    const DERIVE: &'static str;
     const NO_REFS: Self;
     fn default_set() -> Vec<Self>;
     fn is_not_ref(&self) -> bool;
@@ -123,7 +122,6 @@ pub trait FromPath: Sized + Copy + Ord {
 
 impl FromPath for Wrapper {
     const IDENT: &'static str = "wrapper";
-    const DERIVE: &'static str = "Wrapper";
     const NO_REFS: Self = Self::NoRefs;
 
     fn default_set() -> Vec<Self> { vec![Wrapper::AsRef, Wrapper::Borrow] }
@@ -650,7 +648,6 @@ impl Wrapper {
 
 impl FromPath for WrapperMut {
     const IDENT: &'static str = "wrapper_mut";
-    const DERIVE: &'static str = "WrapperMut";
     const NO_REFS: Self = Self::NoRefs;
 
     fn default_set() -> Vec<Self> { vec![WrapperMut::AsMut, WrapperMut::BorrowMut] }
