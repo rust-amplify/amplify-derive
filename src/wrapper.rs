@@ -27,6 +27,8 @@ const EXAMPLE: &str = r#"#[wrapper(LowerHex, Add)]"#;
 #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
 enum Wrapper {
     NoRefs,
+    NoFrom,
+    From,
     // Formatting
     FromStr,
     Display,
@@ -124,7 +126,7 @@ impl FromPath for Wrapper {
     const IDENT: &'static str = "wrapper";
     const NO_REFS: Self = Self::NoRefs;
 
-    fn default_set() -> Vec<Self> { vec![Wrapper::AsRef, Wrapper::Borrow] }
+    fn default_set() -> Vec<Self> { vec![Wrapper::From, Wrapper::AsRef, Wrapper::Borrow] }
 
     fn is_not_ref(&self) -> bool { *self != Wrapper::AsRef && *self != Wrapper::Borrow }
 
@@ -133,6 +135,8 @@ impl FromPath for Wrapper {
             Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
             |segment| {
                 Ok(match segment.ident.to_string().as_str() {
+                    "From" => Some(Wrapper::From),
+                    "NoFrom" => Some(Wrapper::NoFrom),
                     "FromStr" => Some(Wrapper::FromStr),
                     "Display" => Some(Wrapper::Display),
                     "Debug" => Some(Wrapper::Debug),
@@ -241,11 +245,20 @@ impl Wrapper {
         let amplify_crate = get_amplify_crate(input);
 
         match self {
+            Wrapper::From => quote! {
+                #[automatically_derived]
+                impl #impl_generics #amplify_crate::FromInner for #ident_name #ty_generics #where_clause {
+                    #[inline]
+                    fn from_inner(inner: Self::Inner) -> Self {
+                        Self::from(inner)
+                    }
+                }
+            },
             Wrapper::FromStr => quote! {
                 #[automatically_derived]
                 impl #impl_generics ::core::str::FromStr for #ident_name #ty_generics #where_clause
                 {
-                    type Err = <<Self as #amplify_crate::Wrapper>::Inner as ::core::str::FromStr>::Err;
+                    type Err = <<Self as #amplify_crate::Inner>::Inner as ::core::str::FromStr>::Err;
 
                     #[inline]
                     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -635,6 +648,7 @@ impl Wrapper {
                 }
             },
             Wrapper::NoRefs |
+            Wrapper::NoFrom |
             Wrapper::Hex |
             Wrapper::Exp |
             Wrapper::NumberFmt |
@@ -755,9 +769,9 @@ impl WrapperMut {
             },
             WrapperMut::AsMut => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Inner>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
-                    fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
+                    fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Inner>::Inner {
                         &mut self.#field
                     }
                 }
@@ -774,9 +788,9 @@ impl WrapperMut {
             },
             WrapperMut::BorrowMut => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Inner>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
-                    fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
+                    fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Inner>::Inner {
                         &mut self.#field
                     }
                 }
@@ -995,20 +1009,21 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
 
     let (field, from) = get_params(&input)?;
 
-    let wrappers = get_wrappers::<Wrapper>(&input)?;
+    let mut wrappers = get_wrappers::<Wrapper>(&input)?;
+    if wrappers.contains(&Wrapper::NoFrom) {
+        wrappers = wrappers
+            .into_iter()
+            .filter(|w| *w != Wrapper::From && *w != Wrapper::NoFrom)
+            .collect();
+    }
     let wrapper_derive = wrappers
         .iter()
         .map(|w| w.into_token_stream2(&input, &from, &field));
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics #amplify_crate::Wrapper for #ident_name #ty_generics #where_clause {
+        impl #impl_generics #amplify_crate::Inner for #ident_name #ty_generics #where_clause {
             type Inner = #from;
-
-            #[inline]
-            fn from_inner(inner: Self::Inner) -> Self {
-                Self::from(inner)
-            }
 
             #[inline]
             fn as_inner(&self) -> &Self::Inner {
@@ -1047,9 +1062,9 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics #amplify_crate::WrapperMut for #ident_name #ty_generics #where_clause {
+        impl #impl_generics #amplify_crate::InnerMut for #ident_name #ty_generics #where_clause {
             #[inline]
-            fn as_inner_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
+            fn as_inner_mut(&mut self) -> &mut <Self as #amplify_crate::Inner>::Inner {
                 &mut self.#field
             }
         }
