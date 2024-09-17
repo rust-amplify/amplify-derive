@@ -23,7 +23,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics ::std::error::Error for #ident_name #ty_generics #where_clause {
+        impl #impl_generics ::core::error::Error for #ident_name #ty_generics #where_clause {
         }
 
         #[automatically_derived]
