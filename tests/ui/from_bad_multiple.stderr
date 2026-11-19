@@ -1,0 +1,5 @@
+error: unexpected argument: `from` takes a single unnamed argument
+ --> tests/ui/from_bad_multiple.rs:4:12
+  |
+4 | #[from(u8, u16)]
+  |            ^^^

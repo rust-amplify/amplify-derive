@@ -4,7 +4,7 @@
 ![Lints](https://github.com/rust-amplify/amplify-derive/workflows/Lints/badge.svg)
 [![codecov](https://codecov.io/gh/rust-amplify/amplify-derive/branch/master/graph/badge.svg)](https://codecov.io/gh/rust-amplify/amplify-derive)
 
-[![crates.io](https://meritbadge.herokuapp.com/amplify_derive)](https://crates.io/crates/amplify_derive)
+[![crates.io](https://img.shields.io/crates/v/amplify_derive.svg)](https://crates.io/crates/amplify_derive)
 [![Docs](https://docs.rs/amplify_derive/badge.svg)](https://docs.rs/amplify_derive)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![Apache-2 licensed](https://img.shields.io/crates/l/amplify_derive)](./LICENSE)
@@ -15,7 +15,7 @@ type wrappers, derive macros.
 This is a part of Rust language amplification library providing required derive
 macros.
 
-Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
+Minimum supported Rust version (MSRV): 1.100.0. Rust edition: 2024.
 
 ## Overview
 
@@ -42,7 +42,7 @@ Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
    
     impl Int {
         pub fn print(&self) -> String {
-            s!("Integer representation")
+            std::string::String::from("Integer representation")
         }
     }
    ```
@@ -73,12 +73,12 @@ Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
         #[display("Letter C")]
         C,
 
-        /// Letter {_0}
+        /// Letter {0}
         Letter(String)
     };
 
     assert_eq!(format!("{}", Variants::C), "Letter C");
-    assert_eq!(format!("{}", Variants::Letter(s!("K"))), " Letter K");
+    assert_eq!(format!("{}", Variants::Letter(s!("K"))), "Letter K");
    ```
    You can also mix in this mode with other fors of display tags on a
    specific options; in this case doc comments are ignored
@@ -87,30 +87,47 @@ Minimum supported rust compiler version (MSRV): 1.60.0. Rust edition 2021.
 
 Advanced use with enums:
 ```rust
-#[derive(Debug, Display)]
-#[display(Debug)]
+#[derive(Display)]
 enum Test {
     Some,
 
-    #[display = "OtherName"]
+    #[display("OtherName")]
     Other,
 
     Named {
         x: u8,
     },
 
-    #[display = "Custom{x}"]
+    #[display("Custom{x}", alt = "this is alternative")]
     NamedCustom {
         x: u8,
     },
 
+    #[display(inner)]
+    Inner {
+        a: String,
+    },
+
     Unnamed(u16),
 
-    // NB: Use `_`-prefixed indexes for tuple values
-    #[display = "Custom{_0}"]
+    // NB: Use indexes for tuple values
+    #[display("Custom{0}")]
     UnnamedCustom(String),
 }
+
+assert_eq!(format!("{}", Test::Some), "Some");
+assert_eq!(format!("{}", Test::Other), "OtherName");
+assert_eq!(format!("{}", Test::Named { x: 1 }), "Named { .. }");
+assert_eq!(format!("{}", Test::Unnamed(5)), "Unnamed(..)");
+assert_eq!(format!("{}", Test::NamedCustom { x: 8 }), "Custom8");
+assert_eq!(format!("{:#}", Test::NamedCustom { x: 8 }), "this is alternative");
+assert_eq!(format!("{}", Test::UnnamedCustom("Test".to_string())), "CustomTest");
 ```
+
+Format strings follow the rules of `format!`: tuple fields are referenced by
+index (`{0}`), empty placeholders (`{}`) are numbered in order, escaped braces
+(`{{` and `}}`) are printed literally, and fields may be used as width or
+precision parameters (`{value:>width$}`).
 
 ## Error derive
 
@@ -127,7 +144,7 @@ enum Error {
     Io,
     /// Math overflow
     Overflow,
-    /// Zero division with {_0}
+    /// Zero division with {0}
     ZeroDivision(u16),
 }
 ```
@@ -183,13 +200,12 @@ pub struct Wrapper(u32, i16);
 
 ## Wrapper derive
 
-Creates rust new type wrapping existing type. Can be used in sturctures
+Creates a Rust newtype wrapping an existing type. It can be used in structures
 containing multiple named or unnamed fields; in this case the field you'd
 like to wrap should be marked with `#[wrap]` attribute; otherwise the first
 field is assumed to be the wrapped one.
 
-Use with multiple fileds requires that you do `From` and `Default` derive
-on the main structure.
+Using multiple fields requires deriving `From` and `Default` for the wrapper.
 
 Supports automatic implementation of the following traits:
 * `amplify::Wrapper`
@@ -200,26 +216,13 @@ Supports automatic implementation of the following traits:
 * `Deref`
 * `DerefMut`
 
-Complete usage of this derive macro is possible only with nightly rust
-compiler with `trivial_bounds` feature gate set for the crate and `nightly`
-feature set. This will give you an automatic implementation for additional
-traits, it they are implemented for the wrapped type:
-* `Display`
-* `LowerHex`
-* `UpperHex`
-* `LowerExp`
-* `UpperExp`
-* `Octal`
-* `Index`
-* `IndexMut`
-* `Add`
-* `AddAssign`
-* `Sub`
-* `SubAssign`
-* `Mul`
-* `MulAssign`
-* `Div`
-* `DivAssign`
+Additional standard traits can be selected on stable Rust when they are
+implemented by the wrapped type. `#[wrapper(...)]` supports formatting traits,
+`FromStr`, `FromHex`, reference access, indexing, ranges, and value operators.
+`#[wrapper_mut(...)]` supports mutable references, mutable indexing, ranges,
+and assignment operators. Group options include `Hex`, `Exp`, `NumberFmt`,
+`RangeOps`, `MathOps`, `BoolOps`, `BitOps`, `RangeMut`, `MathAssign`,
+`BoolAssign`, and `BitAssign`; use `NoRefs` to omit the default reference impls.
 
 Other traits, such as `PartialEq`, `Eq`, `PartialOrd`, `Ord`,
 `Hash` can be implemented using standard `#[derive]` attribute in the
@@ -228,8 +231,10 @@ same manner as `Default`, `Debug` and `From`
 ### Example
 
 ```rust
+use std::collections::HashMap;
 use std::marker::PhantomData;
-use amplify::Wrapper;
+use amplify::Wrapper as _;
+use amplify_derive::{From, Wrapper};
 
 #[derive(Clone, Wrapper, Default, From, Debug)]
 struct Wrapped<T, U>(
@@ -242,7 +247,7 @@ where
     U: Sized + Clone;
 
 let w = Wrapped::<(), u8>::default();
-assert_eq!(w.into_inner(), HashMap::<usize, Vec<u8>>::default());
+assert_eq!(w.as_inner(), &HashMap::<usize, Vec<u8>>::default());
 ```
 
 ## Getters derive
@@ -278,9 +283,8 @@ arbitrary time without much hussle:
 ### Example
 
 ```rust
-# #[macro_use] extern crate amplify_derive;
-extern crate amplify;
-use amplify::AsAny;
+use amplify::AsAny as _;
+use amplify_derive::AsAny;
 
 #[derive(AsAny, Copy, Clone, PartialEq, Eq, Debug)]
 struct Point {

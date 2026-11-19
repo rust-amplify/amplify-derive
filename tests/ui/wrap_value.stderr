@@ -1,0 +1,5 @@
+error: unknown `wrap` argument `yes`
+ --> tests/ui/wrap_value.rs:4:20
+  |
+4 | struct Item(#[wrap(yes)] u8);
+  |                    ^^^

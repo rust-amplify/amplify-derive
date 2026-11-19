@@ -1,0 +1,23 @@
+error: `skip` takes no value
+ --> tests/ui/getter_values.rs:6:21
+  |
+6 |     #[getter(skip = true)]
+  |                     ^^^^
+
+error: `all` and `as_mut` cannot be used together
+ --> tests/ui/getter_values.rs:5:19
+  |
+5 |     #[getter(all, as_mut)]
+  |                   ^^^^^^
+
+error: `base_name` requires a value: expected a string literal
+  --> tests/ui/getter_values.rs:12:14
+   |
+12 |     #[getter(base_name, "name")]
+   |              ^^^^^^^^^
+
+error: `getter` takes only named arguments
+  --> tests/ui/getter_values.rs:12:25
+   |
+12 |     #[getter(base_name, "name")]
+   |                         ^^^^^^

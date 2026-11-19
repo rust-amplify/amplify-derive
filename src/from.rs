@@ -14,7 +14,9 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
+use amplify_syn::{AttrReq, ListReq, Value, ValueClass};
 use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
@@ -23,7 +25,10 @@ use syn::{
 };
 
 const NAME: &str = "from";
-const EXAMPLE: &str = r#"#[from(::std::fmt::Error)]"#;
+
+/// The content of `#[from]`: the type to convert from, which may be left out
+/// where a single field gives it.
+fn rules() -> AttrReq { AttrReq::new(NAME).unnamed(ListReq::maybe_one(ValueClass::Type)) }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum InstructionEntity {
@@ -35,10 +40,17 @@ enum InstructionEntity {
     Unit {
         variant: Option<Ident>,
     },
+    EmptyNamed {
+        variant: Ident,
+    },
+    EmptyUnnamed {
+        variant: Ident,
+    },
     Named {
         variant: Option<Ident>,
         field: Ident,
         other: Vec<Ident>,
+        union: bool,
     },
     Unnamed {
         variant: Option<Ident>,
@@ -48,9 +60,11 @@ enum InstructionEntity {
 }
 
 impl InstructionEntity {
-    pub fn with_fields(fields: &Fields, variant: Option<Ident>) -> Result<Self> {
+    pub fn with_fields(fields: &Fields, variant: Option<Ident>, union: bool) -> Result<Self> {
         let res = match (fields.len(), variant, fields.clone(), fields.iter().next().cloned()) {
-            (0, Some(v), ..) => InstructionEntity::Unit { variant: Some(v) },
+            (0, Some(v), Fields::Named(_), ..) => InstructionEntity::EmptyNamed { variant: v },
+            (0, Some(v), Fields::Unnamed(_), ..) => InstructionEntity::EmptyUnnamed { variant: v },
+            (0, Some(v), Fields::Unit, ..) => InstructionEntity::Unit { variant: Some(v) },
             (_, variant, Fields::Unit, ..) => InstructionEntity::Unit { variant },
             (1, variant, Fields::Named(f), Some(Field { ident: Some(i), .. })) => {
                 InstructionEntity::Named {
@@ -62,6 +76,7 @@ impl InstructionEntity {
                         .filter_map(|f| f.ident.clone())
                         .filter(|ident| ident != &i)
                         .collect(),
+                    union,
                 }
             }
             (1, _, Fields::Named(_), ..) => {
@@ -70,6 +85,16 @@ impl InstructionEntity {
             (_, Some(variant), Fields::Named(f), ..) => InstructionEntity::DefaultEnumFields {
                 variant,
                 fields: f.named.iter().filter_map(|f| f.ident.clone()).collect(),
+            },
+            (_, None, Fields::Named(f), ..) if union => InstructionEntity::Named {
+                variant: None,
+                field: f
+                    .named
+                    .first()
+                    .and_then(|field| field.ident.clone())
+                    .expect("a union has at least one field"),
+                other: Vec::new(),
+                union: true,
             },
             (len, variant, Fields::Unnamed(_), ..) => InstructionEntity::Unnamed {
                 variant,
@@ -87,6 +112,7 @@ impl InstructionEntity {
         field: &Field,
         fields: &Fields,
         variant: Option<Ident>,
+        union: bool,
     ) -> Self {
         if let Some(ref ident) = field.ident {
             InstructionEntity::Named {
@@ -97,6 +123,7 @@ impl InstructionEntity {
                     .filter_map(|f| f.ident.clone())
                     .filter(|i| ident != i)
                     .collect(),
+                union,
             }
         } else {
             InstructionEntity::Unnamed {
@@ -110,28 +137,39 @@ impl InstructionEntity {
     pub fn into_token_stream2(self) -> TokenStream2 {
         match self {
             InstructionEntity::Default => quote! {
-                Self::default()
+                <Self as ::core::default::Default>::default()
             },
             InstructionEntity::Unit { variant } => {
                 let var = variant.map_or(quote! {}, |v| quote! {:: #v});
                 quote! { Self #var }
             }
+            InstructionEntity::EmptyNamed { variant } => quote! { Self::#variant {} },
+            InstructionEntity::EmptyUnnamed { variant } => quote! { Self::#variant() },
+            InstructionEntity::Named {
+                variant: None,
+                field,
+                union: true,
+                ..
+            } => quote! {
+                Self { #field: ::core::convert::Into::into(v) }
+            },
             InstructionEntity::Named {
                 variant: None,
                 field,
                 ..
             } => {
                 quote! {
-                    Self { #field: v.into(), ..Default::default() }
+                    Self { #field: ::core::convert::Into::into(v), ..::core::default::Default::default() }
                 }
             }
             InstructionEntity::Named {
                 variant: Some(var),
                 field,
                 other,
+                ..
             } => {
                 quote! {
-                    Self :: #var { #field: v.into(), #( #other: Default::default(), )* }
+                    Self :: #var { #field: ::core::convert::Into::into(v), #( #other: ::core::default::Default::default(), )* }
                 }
             }
             InstructionEntity::Unnamed {
@@ -141,20 +179,20 @@ impl InstructionEntity {
             } => {
                 let var = variant.map_or(quote! {}, |v| quote! {:: #v});
                 let prefix = (0..index).fold(TokenStream2::new(), |mut stream, _| {
-                    stream.extend(quote! {Default::default(),});
+                    stream.extend(quote! {::core::default::Default::default(),});
                     stream
                 });
                 let suffix = ((index + 1)..total).fold(TokenStream2::new(), |mut stream, _| {
-                    stream.extend(quote! {Default::default(),});
+                    stream.extend(quote! {::core::default::Default::default(),});
                     stream
                 });
                 quote! {
-                    Self #var ( #prefix v.into(), #suffix )
+                    Self #var ( #prefix ::core::convert::Into::into(v), #suffix )
                 }
             }
             InstructionEntity::DefaultEnumFields { variant, fields } => {
                 quote! {
-                    Self #variant { #( #fields: Default::default() )* }
+                    Self::#variant { #( #fields: ::core::default::Default::default(), )* }
                 }
             }
         }
@@ -162,7 +200,7 @@ impl InstructionEntity {
 }
 
 #[derive(Clone)]
-struct InstructionEntry(pub Type, pub InstructionEntity);
+struct InstructionEntry(pub Type, pub InstructionEntity, pub Span);
 
 impl PartialEq for InstructionEntry {
     // Ugly way, but with current `syn` version no other way is possible
@@ -176,8 +214,8 @@ impl PartialEq for InstructionEntry {
 }
 
 impl InstructionEntry {
-    pub fn with_type(ty: &Type, entity: &InstructionEntity) -> Self {
-        Self(ty.clone(), entity.clone())
+    pub fn with_type(ty: &Type, entity: &InstructionEntity, span: Span) -> Self {
+        Self(ty.clone(), entity.clone(), span)
     }
 
     pub fn parse(
@@ -186,23 +224,19 @@ impl InstructionEntry {
         entity: InstructionEntity,
     ) -> Result<Vec<InstructionEntry>> {
         let mut list = Vec::<InstructionEntry>::new();
-        for attr in attrs.iter().filter(|attr| attr.path.is_ident(NAME)) {
-            // #[from]
-            if attr.tokens.is_empty() {
-                match (fields.len(), fields.iter().next()) {
-                    (1, Some(field)) => list.push(InstructionEntry::with_type(&field.ty, &entity)),
-                    _ => {
-                        return Err(attr_err!(
-                            attr,
-                            "empty attribute is allowed only for entities with a single field; \
-                             for multi-field entities specify the attribute right ahead of the \
-                             target field"
-                        ));
-                    }
+        for attr in rules().each(attrs)? {
+            let ty = match (attr.unnamed().first().and_then(Value::as_type), fields.iter().next()) {
+                (Some(ty), _) => ty,
+                (None, Some(field)) if fields.len() == 1 => &field.ty,
+                _ => {
+                    return Err(attr.error(
+                        "empty attribute is allowed only for entities with a single field; for \
+                         multi-field entities specify the attribute right ahead of the target \
+                         field",
+                    ));
                 }
-            } else {
-                list.push(InstructionEntry::with_type(&attr.parse_args()?, &entity));
-            }
+            };
+            list.push(InstructionEntry::with_type(ty, &entity, attr.span()));
         }
         Ok(list)
     }
@@ -212,15 +246,16 @@ impl InstructionEntry {
 struct InstructionTable(Vec<InstructionEntry>);
 
 impl InstructionTable {
-    pub fn new() -> Self { Default::default() }
+    pub fn new() -> Self { ::core::default::Default::default() }
 
     pub fn parse(
         &mut self,
         fields: &Fields,
         attrs: &[Attribute],
         variant: Option<Ident>,
+        union: bool,
     ) -> Result<&Self> {
-        let entity = InstructionEntity::with_fields(fields, variant.clone())?;
+        let entity = InstructionEntity::with_fields(fields, variant.clone(), union)?;
         self.extend(InstructionEntry::parse(fields, attrs, entity.clone())?)?;
         for (index, field) in fields.iter().enumerate() {
             let mut punctuated = Punctuated::new();
@@ -228,18 +263,25 @@ impl InstructionTable {
             self.extend(InstructionEntry::parse(
                 &field.ident.as_ref().map_or(
                     Fields::Unnamed(FieldsUnnamed {
-                        paren_token: Default::default(),
+                        paren_token: ::core::default::Default::default(),
                         unnamed: punctuated.clone(),
                     }),
                     |_| {
                         Fields::Named(FieldsNamed {
-                            brace_token: Default::default(),
+                            brace_token: ::core::default::Default::default(),
                             named: punctuated,
                         })
                     },
                 ),
                 &field.attrs,
-                InstructionEntity::with_field(index, fields.len(), field, fields, variant.clone()),
+                InstructionEntity::with_field(
+                    index,
+                    fields.len(),
+                    field,
+                    fields,
+                    variant.clone(),
+                    union,
+                ),
             )?)?;
         }
         if variant.is_none() && fields.len() == 1 && self.0.is_empty() {
@@ -247,34 +289,33 @@ impl InstructionTable {
                 .into_iter()
                 .next()
                 .expect("we know we have at least one item");
-            self.push(InstructionEntry::with_type(&field.ty, &entity));
+            self.push(InstructionEntry::with_type(&field.ty, &entity, field.span()));
         }
         Ok(self)
     }
 
     fn push(&mut self, item: InstructionEntry) { self.0.push(item) }
 
-    fn extend<T>(&mut self, list: T) -> Result<usize>
+    fn extend<T>(&mut self, list: T) -> Result<()>
     where T: IntoIterator<Item = InstructionEntry> {
-        let mut count = 0;
         for entry in list {
-            self.0.iter().find(|e| *e == &entry).map_or(Ok(()), |_| {
-                Err(Error::new(
-                    Span::call_site(),
-                    format!("Attribute `#[{}]`: repeated use of type `{}`", NAME, quote! {ty}),
-                ))
-            })?;
+            if self.0.contains(&entry) {
+                let ty = &entry.0;
+                return Err(Error::new(
+                    entry.2,
+                    format!("Attribute `#[{}]`: repeated use of type `{}`", NAME, quote! {#ty}),
+                ));
+            }
             self.0.push(entry);
-            count += 1;
         }
-        Ok(count)
+        Ok(())
     }
 
     pub fn into_token_stream2(self, input: &DeriveInput) -> TokenStream2 {
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let ident_name = &input.ident;
 
-        self.0.into_iter().fold(TokenStream2::new(), |mut stream, InstructionEntry(from, entity)| {
+        self.0.into_iter().fold(TokenStream2::new(), |mut stream, InstructionEntry(from, entity, _)| {
             let convert = entity.into_token_stream2();
             stream.extend(quote! {
                 #[automatically_derived]
@@ -299,32 +340,28 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
 
 fn inner_struct(input: &DeriveInput, data: &DataStruct) -> Result<TokenStream2> {
     let mut instructions = InstructionTable::new();
-    instructions.parse(&data.fields, &input.attrs, None)?;
+    instructions.parse(&data.fields, &input.attrs, None, false)?;
     Ok(instructions.into_token_stream2(input))
 }
 
 fn inner_enum(input: &DeriveInput, data: &DataEnum) -> Result<TokenStream2> {
     // Do not let top-level `from` on enums
-    input
-        .attrs
-        .iter()
-        .find(|attr| attr.path.is_ident(NAME))
-        .map_or(Ok(()), |a| {
-            Err(attr_err!(
-                a,
-                "top-level attribute is not allowed, use it for specific fields or variants"
-            ))
-        })?;
+    if let Some(attr) = input.attrs.iter().find(|attr| attr.path().is_ident(NAME)) {
+        return Err(Error::new_spanned(
+            attr.path(),
+            "top-level attribute is not allowed, use it for specific fields or variants",
+        ));
+    }
 
     let mut instructions = InstructionTable::new();
     for v in &data.variants {
-        instructions.parse(&v.fields, &v.attrs, Some(v.ident.clone()))?;
+        instructions.parse(&v.fields, &v.attrs, Some(v.ident.clone()), false)?;
     }
     Ok(instructions.into_token_stream2(input))
 }
 
 fn inner_union(input: &DeriveInput, data: &DataUnion) -> Result<TokenStream2> {
     let mut instructions = InstructionTable::new();
-    instructions.parse(&Fields::Named(data.fields.clone()), &input.attrs, None)?;
+    instructions.parse(&Fields::Named(data.fields.clone()), &input.attrs, None, true)?;
     Ok(instructions.into_token_stream2(input))
 }

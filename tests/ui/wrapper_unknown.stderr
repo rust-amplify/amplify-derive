@@ -1,0 +1,5 @@
+error: unknown `wrapper` argument `Bogus`
+ --> tests/ui/wrapper_unknown.rs:4:11
+  |
+4 | #[wrapper(Bogus)]
+  |           ^^^^^

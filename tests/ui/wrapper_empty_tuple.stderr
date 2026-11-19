@@ -1,0 +1,5 @@
+error: a wrapper must have at least one field
+ --> tests/ui/wrapper_empty_tuple.rs:4:1
+  |
+4 | struct Item();
+  | ^^^^^^^^^^^^^^

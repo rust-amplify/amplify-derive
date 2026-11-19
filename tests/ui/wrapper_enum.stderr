@@ -1,0 +1,7 @@
+error: Deriving wrapper is not supported in enums
+ --> tests/ui/wrapper_enum.rs:4:1
+  |
+4 | / enum Item {
+5 | |     Value(u8),
+6 | | }
+  | |_^

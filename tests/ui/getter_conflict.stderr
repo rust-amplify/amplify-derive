@@ -1,0 +1,5 @@
+error: `as_copy` and `as_clone` cannot be used together
+ --> tests/ui/getter_conflict.rs:5:23
+  |
+5 |     #[getter(as_copy, as_clone)]
+  |                       ^^^^^^^^

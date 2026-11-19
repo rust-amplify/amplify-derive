@@ -1,0 +1,5 @@
+error: unknown `getter` argument `as_cpoy`
+ --> tests/ui/getter_unknown.rs:5:14
+  |
+5 |     #[getter(as_cpoy)]
+  |              ^^^^^^^

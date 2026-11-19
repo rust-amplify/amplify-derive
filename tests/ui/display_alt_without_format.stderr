@@ -1,0 +1,5 @@
+error: alternative formatting can be given only with a format string
+ --> tests/ui/display_alt_without_format.rs:4:18
+  |
+4 | #[display(Debug, alt = "{:#?}")]
+  |                  ^^^

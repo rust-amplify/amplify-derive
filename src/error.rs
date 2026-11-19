@@ -15,6 +15,7 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
 use syn::{DeriveInput, Result};
 
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
@@ -23,13 +24,13 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics ::std::error::Error for #ident_name #ty_generics #where_clause {
+        impl #impl_generics ::core::error::Error for #ident_name #ty_generics #where_clause {
         }
 
         #[automatically_derived]
-        impl #impl_generics From<#ident_name #ty_generics> for String #where_clause {
+        impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for ::std::string::String #where_clause {
             fn from(err: #ident_name #ty_generics) -> Self {
-                err.to_string()
+                ::std::string::ToString::to_string(&err)
             }
         }
     })

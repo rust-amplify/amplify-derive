@@ -13,75 +13,24 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-//! Amplifying Rust language capabilities: helper functions for creating proc
-//! macro libraries
+//! Rules for the content of derive macro attributes, and the grammar the rules
+//! are checked against.
 //!
-//! # Examples
+//! A derive macro states what its attribute may contain as an [`AttrReq`]:
+//! the named arguments with the values they hold ([`ArgValueReq`]), the
+//! unnamed arguments ([`ListReq`]) and the arguments which exclude each
+//! other. Reading an attribute through its rules gives a
+//! [`ParametrizedAttr`], or errors pointing at each argument which breaks
+//! them.
 //!
-//! `#[name]` - single form
-//! `#[name = "literal"]` - optional single value
-//! `#[name = TypeName]` - path value
-//! `#[name("literal", TypeName, arg = value)]` - list of arguments
+//! The grammar ([`Attr`], [`Form`], [`Arg`], [`NamedArg`], [`Value`]) covers
+//! bare attributes, single-value attributes, and comma-separated lists
+//! containing literals, types, and named values.
 
-#![deny(
-    non_upper_case_globals,
-    non_camel_case_types,
-    non_snake_case,
-    unused_mut,
-    unused_imports,
-    missing_docs,
-    dead_code
-)]
-#![allow(clippy::large_enum_variant)]
-
-#[macro_use]
-extern crate quote;
-#[macro_use]
-extern crate syn;
-extern crate proc_macro;
-
+mod arg;
 mod attr;
-mod cls;
-mod error;
-mod parsers;
 mod req;
-mod val;
-mod data;
 
-pub use attr::{Attr, ExtractAttr, ParametrizedAttr, SingularAttr};
-pub use cls::{LiteralClass, TypeClass, ValueClass};
-pub use data::{
-    DataInner, DataType, DeriveInner, Element, EnumKind, Field, FieldKind, Fields, Items,
-    NamedField, Scope, Variant, Vis,
-};
-pub use error::Error;
-pub use parsers::{MetaArg, MetaArgList, MetaArgNameValue};
-pub use req::{ArgValueReq, AttrReq, ListReq, ValueReq};
-pub use val::ArgValue;
-
-/// Convenience macro for constructing [`struct@syn::Ident`] from literals
-#[macro_export]
-macro_rules! ident {
-    ($ident:ident) => {
-        ::syn::Ident::new(stringify!($ident), ::proc_macro2::Span::call_site())
-    };
-}
-
-/// Convenience macro for constructing [`struct@syn::Path`] from literals
-#[macro_export]
-macro_rules! path {
-    ($ident:ident) => {
-        ::syn::Path::from(ident!($ident))
-    };
-}
-
-#[cfg(test)]
-mod test {
-    use proc_macro2::Span;
-    use syn::Ident;
-
-    #[test]
-    fn ident() {
-        assert_eq!(ident!(u8), Ident::new("u8", Span::call_site()));
-    }
-}
+pub use arg::{Arg, NamedArg, Value};
+pub use attr::{Attr, Form, ParametrizedAttr};
+pub use req::{ArgValueReq, AttrReq, ListReq, ValueClass};

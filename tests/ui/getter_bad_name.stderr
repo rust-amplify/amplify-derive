@@ -1,0 +1,11 @@
+error: `self` cannot be used as a method name
+ --> tests/ui/getter_bad_name.rs:6:5
+  |
+6 |     value: u8,
+  |     ^^^^^
+
+error: `get-value` cannot be used as a method name
+  --> tests/ui/getter_bad_name.rs:12:5
+   |
+12 |     value: u8,
+   |     ^^^^^

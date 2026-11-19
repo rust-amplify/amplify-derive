@@ -17,24 +17,17 @@
 //! Amplifying Rust language capabilities: multiple generic trait
 //! implementations, type wrappers, derive macros.
 
-#[macro_use]
-extern crate quote;
-#[macro_use]
-extern crate syn;
-extern crate proc_macro;
-
-#[macro_use]
-mod util;
-
 mod as_any;
 mod display;
 mod error;
+mod format;
 mod from;
 mod getters;
+mod util;
 mod wrapper;
 
 use proc_macro::TokenStream;
-use syn::DeriveInput;
+use syn::{DeriveInput, parse_macro_input};
 
 /// # Usage
 ///
@@ -252,7 +245,12 @@ use syn::DeriveInput;
 /// #[display(inner)] // `inner` is synonym to "{0}"
 /// struct Tuple2(u8);
 ///
-/// assert_eq!(format!("{}", Tuple(5)), format!("{}", Tuple2(5)))
+/// #[derive(Clone, Copy, Debug, Display)]
+/// #[display("{}:{}")] // empty placeholders are numbered in order
+/// struct Pair(u8, u8);
+///
+/// assert_eq!(format!("{}", Tuple(5)), format!("{}", Tuple2(5)));
+/// assert_eq!(format!("{}", Pair(1, 2)), "1:2");
 /// ```
 ///
 /// Using inner enum variant representation, defaulting to the variant name
@@ -366,10 +364,8 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
 /// pub struct Wrapper(u32, i16);
 /// ```
 ///
-/// If you use rust nightly and `#![feature(never_type)]` for [`!`], you can
-/// even do the following:
-/// ```ignore
-/// #![feature(never_type)]
+/// The never type can also be used as an input type:
+/// ```
 ///
 /// #[macro_use]
 /// extern crate amplify_derive;
@@ -433,7 +429,7 @@ pub fn derive_from(input: TokenStream) -> TokenStream {
 /// let p = point_ptr.downcast_ref::<Point>().unwrap();
 /// assert_eq!(p.x, 1)
 /// ```
-#[proc_macro_derive(AsAny)]
+#[proc_macro_derive(AsAny, attributes(amplify_crate))]
 pub fn derive_as_any(input: TokenStream) -> TokenStream {
     let derive_input = parse_macro_input!(input as DeriveInput);
     as_any::inner(derive_input)
@@ -469,7 +465,11 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 ///   suffixed with `_ref`; otherwise the base name is used (see below)
 /// - `as_mut`: derives method returning mutable reference. Method name is
 ///   suffixed with `_mut`
-/// - `all`: equivalent to `as_clone, as_ref, as_mut`
+/// - `all`: equivalent to `as_clone, as_ref, as_mut`; can't be combined with
+///   any of the other four
+///
+/// Each of these arguments, except `all`, may be given a string value which
+/// replaces the suffix of the method name, like in `as_mut = "_mutable"`.
 ///
 /// **Can be used**: at type and field level
 ///
@@ -483,7 +483,7 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 ///
 /// **Defaults to**: none (no prefix added)
 ///
-/// **Can be used**: at type level
+/// **Can be used**: at type and field level
 ///
 /// ### `#[getter(base_name = "...")]`
 /// Defines base name for the getter method. Base name is prefixed with prefix
@@ -503,7 +503,13 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 /// structs) is not supported (since it's meaningless), and results in a error.
 ///
 /// Additionally to these two cases, macro errors on argument inconsistencies,
-/// as described in the argument-specific sections.
+/// as described in the argument-specific sections: on unknown or repeated
+/// arguments, on `skip` and `base_name` at the type level, and on values which
+/// are not string literals.
+///
+/// A getter name which can't be a method name, like `self`, is an error as
+/// well. A name which is a reserved word is fine: the getter for a field
+/// named `r#type` is called as `value.r#type()`.
 ///
 /// # Examples
 ///
@@ -632,12 +638,15 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 /// NB: You have to use `derive(From)` in order foe Wrapper to work properly.
 /// Also, in case of multiple fields, each non-wrapped field type must implement
 /// `Default` trait.
+/// A conversion from the wrapper into its inner type is omitted when the inner
+/// type is a bare type parameter, as that implementation would violate Rust's
+/// orphan rules.
 ///
 /// Supports automatic implementation of the following traits:
 /// * `amplify::Wrapper`
 /// * [`AsRef`]
 /// * [`core::borrow::Borrow`]
-/// You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`.
+///   You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
 /// wrapped type, using `#[wrapper()]` proc macro:
@@ -645,12 +654,12 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 ///    * `Deref` for implementing [`core::ops::Deref`]
 ///    * `AsSlice` for implementing [`AsRef`]`<[u8]>`
 ///    * `BorrowSlice` for implementing
-///      [`core::borrow::Borrow`]`<[Self::Inner]>`
+///      [`core::borrow::Borrow`]`<[u8]>`
 /// 2. Formatting:
 ///    * `FromStr` for implementing [`core::str::FromStr`]
 ///    * `Debug` for implementing [`core::fmt::Debug`]
 ///    * `Display` for implementing [`core::fmt::Display`]
-///    * `FromHex` for implementing [`amplify::hex::FromHex`]
+///    * `FromHex` for implementing `amplify::hex::FromHex`
 ///    * `LowerHex` for implementing [`core::fmt::LowerHex`]
 ///    * `UpperHex` for implementing [`core::fmt::UpperHex`]
 ///    * `LowerExp` for implementing [`core::fmt::LowerExp`]
@@ -669,7 +678,7 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 ///    * `IndexToInclusive` for implementing
 ///      [`core::ops::Index`]`<`[`core::ops::RangeToInclusive`]`<usize>>`
 ///    * `IndexFull` for implementing
-///      [`core::ops::Index`]`<`[`core::ops::RangeFrom`]`<usize>>`
+///      [`core::ops::Index`]`<`[`core::ops::RangeFull`]`>`
 /// 4. Arithmetic operations:
 ///    * `Neg` for implementing [`core::ops::Neg`]
 ///    * `Add` for implementing [`core::ops::Add`]
@@ -766,16 +775,16 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * `amplify::WrapperMut`
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
-/// You may skip `AsMut` and `BorrowMut` implementations with
-/// `#[wrapper_mut(NoRefs)]`.
+///   You may skip `AsMut` and `BorrowMut` implementations with
+///   `#[wrapper_mut(NoRefs)]`.
 ///
-/// You can implement additional derives, it they are implemented for the
-/// wrapped type, using `#[wrapper()]` proc macro:
+/// You can implement additional derives, if they are implemented for the
+/// wrapped type, using `#[wrapper_mut()]` proc macro:
 /// 1. Reference access to the inner type:
 ///    * `DerefMut` for implementing [`core::ops::DerefMut`]
 ///    * `AsSliceMut` for implementing [`AsMut`]`<[u8]>`
 ///    * `BorrowSliceMut` for implementing
-///      [`core::borrow::BorrowMut`]`<[Self::Inner]>`
+///      [`core::borrow::BorrowMut`]`<[u8]>`
 /// 2. Indexed access to the inner type:
 ///    * `IndexMut` for implementing [`core::ops::IndexMut`]`<usize>`
 ///    * `IndexRangeMut` for implementing
@@ -789,7 +798,7 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///    * `IndexToInclusiveMut` for implementing
 ///      [`core::ops::IndexMut`]`<`[`core::ops::RangeToInclusive`]`<usize>>`
 ///    * `IndexFullMut` for implementing
-///      [`core::ops::IndexMut`]`<`[`core::ops::RangeFrom`]`<usize>>`
+///      [`core::ops::IndexMut`]`<`[`core::ops::RangeFull`]`>`
 /// 3. Arithmetic operations:
 ///    * `AddAssign` for implementing [`core::ops::AddAssign`]
 ///    * `SubAssign` for implementing [`core::ops::SubAssign`]
@@ -804,14 +813,14 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 ///    * `ShrAssign` for implementing [`core::ops::ShrAssign`]
 ///
 /// There are shortcuts for derivations:
-/// * `#[wrapper(RangeMut)]` will derive all index traits working with ranges
+/// * `#[wrapper_mut(RangeMut)]` will derive all index traits working with ranges
 ///   (`IndexRangeMut`, `IndexToMut`, `IndexFromMut`, `IndexInclusiveMut`,
 ///   `IndexToInclusiveMut`, `IndexFullMut`);
-/// * `#[wrapper(MathAssign)]` will derive all arithmetic operations
+/// * `#[wrapper_mut(MathAssign)]` will derive all arithmetic operations
 ///   (`AddAssign`, `SubAssign`, `MulAssign`, `DivAssign`, `RemAssign`);
-/// * `#[wrapper(BoolAssign)]` will derive all boolean operations
+/// * `#[wrapper_mut(BoolAssign)]` will derive all boolean operations
 ///   (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`);
-/// * `#[wrapper(BitAssign)]` will derive all boolean operations *and bit
+/// * `#[wrapper_mut(BitAssign)]` will derive all boolean operations *and bit
 ///   shifts* (`BitAndAssign`, `BitOrAssign`, `BitXorAssign`, `ShlAssign`,
 ///   `ShrAssign`);
 ///

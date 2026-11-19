@@ -1,0 +1,5 @@
+error: repeated `getter` argument `as_ref`
+ --> tests/ui/getter_repeated.rs:5:22
+  |
+5 |     #[getter(as_ref, as_ref)]
+  |                      ^^^^^^

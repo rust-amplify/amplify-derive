@@ -1,0 +1,5 @@
+error: Deriving `Display` for a union requires a type-level `display` attribute
+ --> tests/ui/display_union_missing.rs:4:1
+  |
+4 | union Value {
+  | ^^^^^

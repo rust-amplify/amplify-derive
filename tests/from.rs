@@ -1,0 +1,142 @@
+#![allow(missing_docs)]
+
+use amplify_derive::From;
+
+mod no_implicit_prelude {
+    #![no_implicit_prelude]
+
+    #[derive(::amplify_derive::From, ::core::default::Default)]
+    pub struct Named {
+        #[from]
+        pub x: u8,
+        pub y: u8,
+    }
+
+    #[derive(::amplify_derive::From, ::core::default::Default)]
+    #[from(u16)]
+    pub struct Unit;
+
+    #[derive(::amplify_derive::From, ::core::default::Default)]
+    pub struct Tuple(#[from] pub u8, pub u16);
+
+    #[derive(::amplify_derive::From)]
+    pub enum Variants {
+        #[from]
+        Single(u8),
+        #[from(u16)]
+        Fields {
+            a: u8,
+            b: u8,
+        },
+        #[from(u32)]
+        Unit,
+        Mixed {
+            #[from]
+            value: i8,
+            other: u8,
+        },
+        Positional(#[from] i16, u8),
+    }
+}
+
+#[derive(From, Default, Debug, PartialEq)]
+struct Number(u32);
+
+#[derive(From, Default, Debug, PartialEq)]
+struct Coordinates {
+    #[from]
+    x: u8,
+    y: u8,
+}
+
+#[derive(From)]
+enum ParseError {
+    #[from]
+    Io(std::io::Error),
+    #[from]
+    Integer(std::num::ParseIntError),
+}
+
+#[derive(From, Debug, PartialEq)]
+enum FromValues {
+    #[from(u8)]
+    Named { first: u8, second: bool },
+    #[from(u16)]
+    Braced {},
+    #[from(u32)]
+    Tuple(),
+}
+
+#[derive(From, Debug, PartialEq)]
+enum NonPathTypes {
+    #[from(&'static str)]
+    Text,
+    #[from([u8; 4])]
+    Array,
+    #[from((u8, u16))]
+    Tuple,
+    #[from(u64)]
+    #[from(i64)]
+    Number,
+}
+
+#[derive(From, Default, Debug, PartialEq)]
+#[from(std::fmt::Error)]
+struct TypeLevel;
+
+#[derive(From)]
+#[allow(dead_code)]
+union UnionValue {
+    #[from]
+    value: u8,
+}
+
+#[test]
+fn generates_struct_and_enum_conversions() {
+    assert_eq!(Number::from(42), Number(42));
+    assert_eq!(Coordinates::from(5), Coordinates { x: 5, y: 0 });
+
+    let io_error = std::io::Error::other("failed");
+    match ParseError::from(io_error) {
+        ParseError::Io(error) => assert_eq!(error.to_string(), "failed"),
+        ParseError::Integer(_) => panic!("expected an I/O error variant"),
+    }
+
+    let parse_error = "not a number".parse::<u8>().unwrap_err();
+    match ParseError::from(parse_error) {
+        ParseError::Integer(error) => assert!(!error.to_string().is_empty()),
+        ParseError::Io(_) => panic!("expected an integer parse error variant"),
+    }
+
+    assert_eq!(FromValues::from(5u8), FromValues::Named {
+        first: 0,
+        second: false
+    });
+    assert!(matches!(FromValues::from(5u16), FromValues::Braced {}));
+    assert!(matches!(FromValues::from(5u32), FromValues::Tuple()));
+    let _union = UnionValue::from(7u8);
+
+    assert_eq!(NonPathTypes::from("text"), NonPathTypes::Text);
+    assert_eq!(NonPathTypes::from([0u8; 4]), NonPathTypes::Array);
+    assert_eq!(NonPathTypes::from((1u8, 2u16)), NonPathTypes::Tuple);
+    assert_eq!(NonPathTypes::from(1u64), NonPathTypes::Number);
+    assert_eq!(NonPathTypes::from(1i64), NonPathTypes::Number);
+    assert_eq!(TypeLevel::from(std::fmt::Error), TypeLevel);
+}
+
+#[test]
+fn generated_code_does_not_depend_on_the_prelude() {
+    use no_implicit_prelude::{Named, Tuple, Unit, Variants};
+
+    let named = Named::from(3u8);
+    assert_eq!((named.x, named.y), (3, 0));
+    let _unit: Unit = Unit::from(1u16);
+    let tuple = Tuple::from(4u8);
+    assert_eq!((tuple.0, tuple.1), (4, 0));
+
+    assert!(matches!(Variants::from(1u8), Variants::Single(1)));
+    assert!(matches!(Variants::from(1u16), Variants::Fields { a: 0, b: 0 }));
+    assert!(matches!(Variants::from(1u32), Variants::Unit));
+    assert!(matches!(Variants::from(2i8), Variants::Mixed { value: 2, other: 0 }));
+    assert!(matches!(Variants::from(3i16), Variants::Positional(3, 0)));
+}

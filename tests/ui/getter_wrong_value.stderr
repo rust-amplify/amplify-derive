@@ -1,0 +1,5 @@
+error: expected a string literal
+ --> tests/ui/getter_wrong_value.rs:4:19
+  |
+4 | #[getter(prefix = 5)]
+  |                   ^

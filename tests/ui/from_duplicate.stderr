@@ -1,0 +1,5 @@
+error: Attribute `#[from]`: repeated use of type `u8`
+ --> tests/ui/from_duplicate.rs:5:3
+  |
+5 | #[from(u8)]
+  |   ^^^^

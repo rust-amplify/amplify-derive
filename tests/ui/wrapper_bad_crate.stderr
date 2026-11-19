@@ -1,0 +1,5 @@
+error: expected `#[amplify_crate(...)]`, found `#[amplify_crate = ...]`
+ --> tests/ui/wrapper_bad_crate.rs:4:3
+  |
+4 | #[amplify_crate = "renamed"]
+  |   ^^^^^^^^^^^^^

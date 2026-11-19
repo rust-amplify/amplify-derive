@@ -13,173 +13,141 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use proc_macro2::TokenStream as TokenStream2;
-use syn::spanned::Spanned;
-use syn::{
-    Data, DeriveInput, Error, Fields, Index, Meta, MetaList, NestedMeta, Path, Result, Type,
-};
+use amplify_syn::{AttrReq, ListReq, Value};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
+use quote::quote;
+use syn::{Data, DeriveInput, Error, Fields, Path, Result, Type};
 
-use crate::util::get_amplify_crate;
+use crate::util::amplify_crate;
 
-const NAME: &str = "wrapper";
-const EXAMPLE: &str = r#"#[wrapper(LowerHex, Add)]"#;
-
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
-enum Wrapper {
-    NoRefs,
-    // Formatting
-    FromStr,
-    Display,
-    Debug,
-    Octal,
-    FromHex,
-    LowerHex,
-    UpperHex,
-    LowerExp,
-    UpperExp,
-    // References
-    Deref,
-    AsRef,
-    AsSlice,
-    Borrow,
-    BorrowSlice,
-    // Indexes
-    Index,
-    IndexRange,
-    IndexFull,
-    IndexFrom,
-    IndexTo,
-    IndexInclusive,
-    IndexToInclusive,
-    // Arithmetics
-    Neg,
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Rem,
-    // Booleans
-    Not,
-    Shl,
-    Shr,
-    BitAnd,
-    BitOr,
-    BitXor,
-    // Group operations
-    Hex,
-    Exp,
-    NumberFmt,
-    RangeOps,
-    MathOps,
-    BoolOps,
-    BitOps,
+/// The variants of an enum by their names.
+trait Names: Sized + 'static {
+    const NAMES: &'static [(&'static str, Self)];
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
-enum WrapperMut {
-    NoRefs,
-    // References
-    DerefMut,
-    AsMut,
-    AsSliceMut,
-    BorrowMut,
-    BorrowSliceMut,
-    // Indexes
-    IndexMut,
-    IndexRangeMut,
-    IndexFullMut,
-    IndexFromMut,
-    IndexToMut,
-    IndexInclusiveMut,
-    IndexToInclusiveMut,
-    // Arithmetics
-    AddAssign,
-    SubAssign,
-    MulAssign,
-    DivAssign,
-    RemAssign,
-    ShlAssign,
-    ShrAssign,
-    // Booleans
-    BitAndAssign,
-    BitOrAssign,
-    BitXorAssign,
-    // Group operations
-    RangeMut,
-    MathAssign,
-    BoolAssign,
-    BitAssign,
+/// Declares an enum together with its [`Names`].
+macro_rules! names {
+    ($(#[$meta:meta])* enum $name:ident { $($variant:ident),+ $(,)? }) => {
+        $(#[$meta])*
+        enum $name { $($variant),+ }
+
+        impl Names for $name {
+            const NAMES: &'static [(&'static str, Self)] =
+                &[$((stringify!($variant), Self::$variant)),+];
+        }
+    };
 }
 
-pub trait FromPath: Sized + Copy + Ord {
-    const IDENT: &'static str;
+names! {
+    #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
+    enum Wrapper {
+        NoRefs,
+        // Formatting
+        FromStr,
+        Display,
+        Debug,
+        Octal,
+        FromHex,
+        LowerHex,
+        UpperHex,
+        LowerExp,
+        UpperExp,
+        // References
+        Deref,
+        AsRef,
+        AsSlice,
+        Borrow,
+        BorrowSlice,
+        // Indexes
+        Index,
+        IndexRange,
+        IndexFull,
+        IndexFrom,
+        IndexTo,
+        IndexInclusive,
+        IndexToInclusive,
+        // Arithmetics
+        Neg,
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Rem,
+        // Booleans
+        Not,
+        Shl,
+        Shr,
+        BitAnd,
+        BitOr,
+        BitXor,
+        // Group operations
+        Hex,
+        Exp,
+        NumberFmt,
+        RangeOps,
+        MathOps,
+        BoolOps,
+        BitOps,
+    }
+}
+
+names! {
+    #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
+    enum WrapperMut {
+        NoRefs,
+        // References
+        DerefMut,
+        AsMut,
+        AsSliceMut,
+        BorrowMut,
+        BorrowSliceMut,
+        // Indexes
+        IndexMut,
+        IndexRangeMut,
+        IndexFullMut,
+        IndexFromMut,
+        IndexToMut,
+        IndexInclusiveMut,
+        IndexToInclusiveMut,
+        // Arithmetics
+        AddAssign,
+        SubAssign,
+        MulAssign,
+        DivAssign,
+        RemAssign,
+        ShlAssign,
+        ShrAssign,
+        // Booleans
+        BitAndAssign,
+        BitOrAssign,
+        BitXorAssign,
+        // Group operations
+        RangeMut,
+        MathAssign,
+        BoolAssign,
+        BitAssign,
+    }
+}
+
+/// The traits one of the wrapper attributes derives.
+///
+/// The attribute takes the names of the enum variants, in any number and
+/// order. A group name stands for several traits.
+trait Wrappers: Names + Copy + PartialEq {
+    /// The attribute which lists the traits.
+    const ATTR: &'static str;
+    /// The marker which takes the reference traits off the list.
     const NO_REFS: Self;
-    fn default_set() -> Vec<Self>;
-    fn is_not_ref(&self) -> bool;
-    fn from_path(path: &Path) -> Result<Option<Self>>;
+    /// The reference traits, which are derived unless `NoRefs` is given.
+    const REFS: [Self; 2];
+    /// Adds the trait, or the traits a group name stands for, to the list.
     fn populate(self, list: &mut Vec<Self>);
 }
 
-impl FromPath for Wrapper {
-    const IDENT: &'static str = "wrapper";
+impl Wrappers for Wrapper {
+    const ATTR: &'static str = "wrapper";
     const NO_REFS: Self = Self::NoRefs;
-
-    fn default_set() -> Vec<Self> { vec![Wrapper::AsRef, Wrapper::Borrow] }
-
-    fn is_not_ref(&self) -> bool { *self != Wrapper::AsRef && *self != Wrapper::Borrow }
-
-    fn from_path(path: &Path) -> Result<Option<Self>> {
-        path.segments.first().map_or(
-            Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
-            |segment| {
-                Ok(match segment.ident.to_string().as_str() {
-                    "FromStr" => Some(Wrapper::FromStr),
-                    "Display" => Some(Wrapper::Display),
-                    "Debug" => Some(Wrapper::Debug),
-                    "Octal" => Some(Wrapper::Octal),
-                    "FromHex" => Some(Wrapper::FromHex),
-                    "LowerHex" => Some(Wrapper::LowerHex),
-                    "UpperHex" => Some(Wrapper::UpperHex),
-                    "LowerExp" => Some(Wrapper::LowerExp),
-                    "UpperExp" => Some(Wrapper::UpperExp),
-                    "NoRefs" => Some(Wrapper::NoRefs),
-                    "AsRef" => Some(Wrapper::AsRef),
-                    "AsSlice" => Some(Wrapper::AsSlice),
-                    "Deref" => Some(Wrapper::Deref),
-                    "Borrow" => Some(Wrapper::Borrow),
-                    "BorrowSlice" => Some(Wrapper::BorrowSlice),
-                    "Index" => Some(Wrapper::Index),
-                    "IndexRange" => Some(Wrapper::IndexRange),
-                    "IndexFull" => Some(Wrapper::IndexFull),
-                    "IndexFrom" => Some(Wrapper::IndexFrom),
-                    "IndexTo" => Some(Wrapper::IndexTo),
-                    "IndexInclusive" => Some(Wrapper::IndexInclusive),
-                    "IndexToInclusive" => Some(Wrapper::IndexToInclusive),
-                    "Add" => Some(Wrapper::Add),
-                    "Neg" => Some(Wrapper::Neg),
-                    "Not" => Some(Wrapper::Not),
-                    "Sub" => Some(Wrapper::Sub),
-                    "Mul" => Some(Wrapper::Mul),
-                    "Div" => Some(Wrapper::Div),
-                    "Rem" => Some(Wrapper::Rem),
-                    "Shl" => Some(Wrapper::Shl),
-                    "Shr" => Some(Wrapper::Shr),
-                    "BitAnd" => Some(Wrapper::BitAnd),
-                    "BitOr" => Some(Wrapper::BitOr),
-                    "BitXor" => Some(Wrapper::BitXor),
-
-                    "Hex" => Some(Wrapper::Hex),
-                    "Exp" => Some(Wrapper::Exp),
-                    "NumberFmt" => Some(Wrapper::NumberFmt),
-                    "RangeOps" => Some(Wrapper::RangeOps),
-                    "MathOps" => Some(Wrapper::MathOps),
-                    "BoolOps" => Some(Wrapper::BoolOps),
-                    "BitOps" => Some(Wrapper::BitOps),
-                    _ => None,
-                })
-            },
-        )
-    }
+    const REFS: [Self; 2] = [Self::AsRef, Self::Borrow];
 
     fn populate(self, list: &mut Vec<Self>) {
         let ext = match self {
@@ -234,11 +202,20 @@ impl Wrapper {
         input: &DeriveInput,
         from: &Type,
         field: &TokenStream2,
+        amplify_crate: &Path,
     ) -> TokenStream2 {
-        let impl_generics_params = input.generics.params.clone();
+        if let Some(trait_name) = formatting_trait(self) {
+            return formatting_impl(trait_name, input, field);
+        }
+        if let Some(index_type) = wrapper_index_type(self) {
+            return index_impl(input, from, field, &index_type, false);
+        }
+        if let Some(operator) = wrapper_operator(self) {
+            return operator_impl(input, field, operator);
+        }
+
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let ident_name = &input.ident;
-        let amplify_crate = get_amplify_crate(input);
 
         match self {
             Wrapper::FromStr => quote! {
@@ -248,39 +225,8 @@ impl Wrapper {
                     type Err = <<Self as #amplify_crate::Wrapper>::Inner as ::core::str::FromStr>::Err;
 
                     #[inline]
-                    fn from_str(s: &str) -> Result<Self, Self::Err> {
-                        use ::core::str::FromStr;
-                        <#from as FromStr>::from_str(s).map(Self::from)
-                    }
-                }
-            },
-            Wrapper::Display => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::Display for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::Display::fmt(&self.#field, f)
-                    }
-                }
-            },
-            Wrapper::Debug => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::Debug for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::Debug::fmt(&self.#field, f)
-                    }
-                }
-            },
-            Wrapper::Octal => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::Octal for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::Octal::fmt(&self.#field, f)
+                    fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
+                        <#from as ::core::str::FromStr>::from_str(s).map(<Self as ::core::convert::From<#from>>::from)
                     }
                 }
             },
@@ -289,53 +235,17 @@ impl Wrapper {
                 impl #impl_generics #amplify_crate::hex::FromHex for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
-                    fn from_byte_iter<I>(iter: I) -> Result<Self, #amplify_crate::hex::Error>
+                    fn from_byte_iter<I>(
+                        iter: I,
+                    ) -> ::core::result::Result<Self, #amplify_crate::hex::Error>
                     where
-                        I: Iterator<Item = Result<u8, #amplify_crate::hex::Error>>
-                            + ExactSizeIterator
-                            + DoubleEndedIterator,
+                        I: ::core::iter::Iterator<
+                                Item = ::core::result::Result<u8, #amplify_crate::hex::Error>,
+                            >
+                            + ::core::iter::ExactSizeIterator
+                            + ::core::iter::DoubleEndedIterator,
                     {
-                        <#from as #amplify_crate::hex::FromHex>::from_byte_iter(iter).map(Self::from)
-                    }
-                }
-            },
-            Wrapper::LowerHex => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::LowerHex for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::LowerHex::fmt(&self.#field, f)
-                    }
-                }
-            },
-            Wrapper::UpperHex => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::UpperHex for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::UpperHex::fmt(&self.#field, f)
-                    }
-                }
-            },
-            Wrapper::LowerExp => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::LowerExp for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::LowerExp::fmt(&self.#field, f)
-                    }
-                }
-            },
-            Wrapper::UpperExp => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::fmt::UpperExp for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        ::core::fmt::UpperExp::fmt(&self.#field, f)
+                        <#from as #amplify_crate::hex::FromHex>::from_byte_iter(iter).map(<Self as ::core::convert::From<#from>>::from)
                     }
                 }
             },
@@ -361,11 +271,11 @@ impl Wrapper {
             },
             Wrapper::AsSlice => quote! {
                 #[automatically_derived]
-                impl #impl_generics AsRef<[u8]> for #ident_name #ty_generics #where_clause
+                impl #impl_generics ::core::convert::AsRef<[u8]> for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
                     fn as_ref(&self) -> &[u8] {
-                        AsRef::<[u8]>::as_ref(&self.#field)
+                        ::core::convert::AsRef::<[u8]>::as_ref(&self.#field)
                     }
                 }
             },
@@ -388,310 +298,17 @@ impl Wrapper {
                     }
                 }
             },
-            Wrapper::Index => {
-                let where_clause = match where_clause {
-                    None => quote! { where },
-                    Some(_) => quote! { #where_clause },
-                };
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<usize> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<usize>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: usize) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexRange => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::Range<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::Range<usize>>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::Range<usize>) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexFrom => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFrom<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::RangeFrom<usize>>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::RangeFrom<usize>) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexTo => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeTo<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::RangeTo<usize>>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::RangeTo<usize>) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexInclusive => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeInclusive<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::RangeInclusive<usize>) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexToInclusive => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeToInclusive<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::RangeInclusive<usize>>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::RangeToInclusive<usize>) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::IndexFull => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::Index<::core::ops::RangeFull> for #ident_name #ty_generics #where_clause
-                    {
-                        type Output = <#from as ::core::ops::Index<::core::ops::RangeFull>>::Output;
-
-                        #[inline]
-                        fn index(&self, index: ::core::ops::RangeFull) -> &Self::Output {
-                            self.#field.index(index)
-                        }
-                    }
-                }
-            }
-            Wrapper::Neg => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Neg for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn neg(self) -> Self {
-                        Self { #field: ::core::ops::Neg::neg(self.#field) }
-                    }
-                }
-            },
-            Wrapper::Not => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Not for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn not(self) -> Self {
-                        Self { #field: ::core::ops::Not::not(self.#field) }
-                    }
-                }
-            },
-            Wrapper::Add => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Add for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn add(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Add::add(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Sub => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Sub for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn sub(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Sub::sub(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Mul => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Mul for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn mul(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Mul::mul(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Div => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Div for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn div(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Div::div(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Rem => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Rem for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn rem(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Rem::rem(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Shl => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Shl for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn shl(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Shl::shl(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::Shr => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Shr for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn shr(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::Shr::shr(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::BitAnd => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitAnd for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn bitand(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitAnd::bitand(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::BitOr => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitOr for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn bitor(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitOr::bitor(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::BitXor => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitXor for #ident_name #ty_generics #where_clause
-                {
-                    type Output = Self;
-
-                    #[inline]
-                    fn bitxor(self, rhs: Self) -> Self {
-                        Self { #field: ::core::ops::BitXor::bitxor(self.#field, rhs.#field) }
-                    }
-                }
-            },
-            Wrapper::NoRefs |
-            Wrapper::Hex |
-            Wrapper::Exp |
-            Wrapper::NumberFmt |
-            Wrapper::RangeOps |
-            Wrapper::MathOps |
-            Wrapper::BoolOps |
-            Wrapper::BitOps => unreachable!(),
+            // Formatting, index and operator traits are generated from the tables below;
+            // `NoRefs` and the group names are resolved before code generation.
+            _ => TokenStream2::new(),
         }
     }
 }
 
-impl FromPath for WrapperMut {
-    const IDENT: &'static str = "wrapper_mut";
+impl Wrappers for WrapperMut {
+    const ATTR: &'static str = "wrapper_mut";
     const NO_REFS: Self = Self::NoRefs;
-
-    fn default_set() -> Vec<Self> { vec![WrapperMut::AsMut, WrapperMut::BorrowMut] }
-
-    fn is_not_ref(&self) -> bool { *self != WrapperMut::AsMut && *self != WrapperMut::BorrowMut }
-
-    fn from_path(path: &Path) -> Result<Option<Self>> {
-        path.segments.first().map_or(
-            Err(attr_err!(path.span(), NAME, "must contain at least one identifier", EXAMPLE)),
-            |segment| {
-                Ok(match segment.ident.to_string().as_str() {
-                    "NoRefs" => Some(WrapperMut::NoRefs),
-                    "DerefMut" => Some(WrapperMut::DerefMut),
-                    "AsMut" => Some(WrapperMut::AsMut),
-                    "AsSliceMut" => Some(WrapperMut::AsSliceMut),
-                    "BorrowMut" => Some(WrapperMut::BorrowMut),
-                    "BorrowSliceMut" => Some(WrapperMut::BorrowSliceMut),
-                    "IndexMut" => Some(WrapperMut::IndexMut),
-                    "IndexRangeMut" => Some(WrapperMut::IndexRangeMut),
-                    "IndexFullMut" => Some(WrapperMut::IndexFullMut),
-                    "IndexFromMut" => Some(WrapperMut::IndexFromMut),
-                    "IndexToMut" => Some(WrapperMut::IndexToMut),
-                    "IndexInclusiveMut" => Some(WrapperMut::IndexInclusiveMut),
-                    "IndexToInclusiveMut" => Some(WrapperMut::IndexToInclusiveMut),
-                    "AddAssign" => Some(WrapperMut::AddAssign),
-                    "SubAssign" => Some(WrapperMut::SubAssign),
-                    "MulAssign" => Some(WrapperMut::MulAssign),
-                    "DivAssign" => Some(WrapperMut::DivAssign),
-                    "RemAssign" => Some(WrapperMut::RemAssign),
-                    "ShlAssign" => Some(WrapperMut::ShlAssign),
-                    "ShrAssign" => Some(WrapperMut::ShrAssign),
-                    "BitAndAssign" => Some(WrapperMut::BitAndAssign),
-                    "BitOrAssign" => Some(WrapperMut::BitOrAssign),
-                    "BitXorAssign" => Some(WrapperMut::BitXorAssign),
-
-                    "RangeMut" => Some(WrapperMut::RangeMut),
-                    "MathAssign" => Some(WrapperMut::MathAssign),
-                    "BoolAssign" => Some(WrapperMut::BoolAssign),
-                    "BitAssign" => Some(WrapperMut::BitAssign),
-                    _ => None,
-                })
-            },
-        )
-    }
+    const REFS: [Self; 2] = [Self::AsMut, Self::BorrowMut];
 
     fn populate(self, list: &mut Vec<Self>) {
         let exp = match self {
@@ -734,13 +351,19 @@ impl WrapperMut {
     pub fn into_token_stream2(
         self,
         input: &DeriveInput,
-        _from: &Type,
+        from: &Type,
         field: &TokenStream2,
+        amplify_crate: &Path,
     ) -> TokenStream2 {
-        let impl_generics_params = input.generics.params.clone();
+        if let Some(index_type) = wrapper_mut_index_type(self) {
+            return index_impl(input, from, field, &index_type, true);
+        }
+        if let Some(operator) = wrapper_mut_operator(self) {
+            return assignment_impl(input, field, operator);
+        }
+
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         let ident_name = &input.ident;
-        let amplify_crate = get_amplify_crate(input);
 
         match self {
             WrapperMut::DerefMut => quote! {
@@ -755,7 +378,7 @@ impl WrapperMut {
             },
             WrapperMut::AsMut => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::convert::AsMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::convert::AsMut<<Self as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
                     fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
                         &mut self.#field
@@ -764,17 +387,17 @@ impl WrapperMut {
             },
             WrapperMut::AsSliceMut => quote! {
                 #[automatically_derived]
-                impl #impl_generics AsMut<[u8]> for #ident_name #ty_generics #where_clause
+                impl #impl_generics ::core::convert::AsMut<[u8]> for #ident_name #ty_generics #where_clause
                 {
                     #[inline]
                     fn as_mut(&mut self) -> &mut [u8] {
-                        AsMut::<[u8]>::as_mut(&mut self.#field)
+                        ::core::convert::AsMut::<[u8]>::as_mut(&mut self.#field)
                     }
                 }
             },
             WrapperMut::BorrowMut => quote! {
                 #[automatically_derived]
-                impl #impl_generics ::core::borrow::BorrowMut<<#ident_name #impl_generics as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
+                impl #impl_generics ::core::borrow::BorrowMut<<Self as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
                     #[inline]
                     fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
                         &mut self.#field
@@ -791,199 +414,221 @@ impl WrapperMut {
                     }
                 }
             },
-            WrapperMut::IndexMut => {
-                let where_clause = match where_clause {
-                    None => quote! { where },
-                    Some(_) => quote! { #where_clause },
-                };
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<usize> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
+            // Index and assignment traits are generated from the tables below;
+            // `NoRefs` and the group names are resolved before code generation.
+            _ => TokenStream2::new(),
+        }
+    }
+}
+
+fn formatting_trait(wrapper: Wrapper) -> Option<Ident> {
+    let name = match wrapper {
+        Wrapper::Display => "Display",
+        Wrapper::Debug => "Debug",
+        Wrapper::Octal => "Octal",
+        Wrapper::LowerHex => "LowerHex",
+        Wrapper::UpperHex => "UpperHex",
+        Wrapper::LowerExp => "LowerExp",
+        Wrapper::UpperExp => "UpperExp",
+        _ => return None,
+    };
+    Some(Ident::new(name, Span::call_site()))
+}
+
+fn formatting_impl(trait_name: Ident, input: &DeriveInput, field: &TokenStream2) -> TokenStream2 {
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let ident = &input.ident;
+    quote! {
+        #[automatically_derived]
+        impl #impl_generics ::core::fmt::#trait_name for #ident #ty_generics #where_clause {
+            #[inline]
+            fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                ::core::fmt::#trait_name::fmt(&self.#field, formatter)
+            }
+        }
+    }
+}
+
+fn wrapper_index_type(wrapper: Wrapper) -> Option<TokenStream2> {
+    match wrapper {
+        Wrapper::Index => Some(quote!(usize)),
+        Wrapper::IndexRange => Some(quote!(::core::ops::Range<usize>)),
+        Wrapper::IndexFull => Some(quote!(::core::ops::RangeFull)),
+        Wrapper::IndexFrom => Some(quote!(::core::ops::RangeFrom<usize>)),
+        Wrapper::IndexTo => Some(quote!(::core::ops::RangeTo<usize>)),
+        Wrapper::IndexInclusive => Some(quote!(::core::ops::RangeInclusive<usize>)),
+        Wrapper::IndexToInclusive => Some(quote!(::core::ops::RangeToInclusive<usize>)),
+        _ => None,
+    }
+}
+
+fn wrapper_mut_index_type(wrapper: WrapperMut) -> Option<TokenStream2> {
+    match wrapper {
+        WrapperMut::IndexMut => Some(quote!(usize)),
+        WrapperMut::IndexRangeMut => Some(quote!(::core::ops::Range<usize>)),
+        WrapperMut::IndexFullMut => Some(quote!(::core::ops::RangeFull)),
+        WrapperMut::IndexFromMut => Some(quote!(::core::ops::RangeFrom<usize>)),
+        WrapperMut::IndexToMut => Some(quote!(::core::ops::RangeTo<usize>)),
+        WrapperMut::IndexInclusiveMut => Some(quote!(::core::ops::RangeInclusive<usize>)),
+        WrapperMut::IndexToInclusiveMut => Some(quote!(::core::ops::RangeToInclusive<usize>)),
+        _ => None,
+    }
+}
+
+fn index_impl(
+    input: &DeriveInput,
+    from: &Type,
+    field: &TokenStream2,
+    index_type: &TokenStream2,
+    mutable: bool,
+) -> TokenStream2 {
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let ident = &input.ident;
+    if mutable {
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics ::core::ops::IndexMut<#index_type>
+                for #ident #ty_generics #where_clause
+            {
+                #[inline]
+                fn index_mut(&mut self, index: #index_type) -> &mut Self::Output {
+                    <#from as ::core::ops::IndexMut<#index_type>>::index_mut(
+                        &mut self.#field,
+                        index,
+                    )
+                }
+            }
+        }
+    } else {
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics ::core::ops::Index<#index_type>
+                for #ident #ty_generics #where_clause
+            {
+                type Output = <#from as ::core::ops::Index<#index_type>>::Output;
+
+                #[inline]
+                fn index(&self, index: #index_type) -> &Self::Output {
+                    <#from as ::core::ops::Index<#index_type>>::index(&self.#field, index)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct OperatorSpec {
+    trait_name: &'static str,
+    method: &'static str,
+    unary: bool,
+}
+
+fn wrapper_operator(wrapper: Wrapper) -> Option<OperatorSpec> {
+    let (trait_name, method, unary) = match wrapper {
+        Wrapper::Neg => ("Neg", "neg", true),
+        Wrapper::Not => ("Not", "not", true),
+        Wrapper::Add => ("Add", "add", false),
+        Wrapper::Sub => ("Sub", "sub", false),
+        Wrapper::Mul => ("Mul", "mul", false),
+        Wrapper::Div => ("Div", "div", false),
+        Wrapper::Rem => ("Rem", "rem", false),
+        Wrapper::Shl => ("Shl", "shl", false),
+        Wrapper::Shr => ("Shr", "shr", false),
+        Wrapper::BitAnd => ("BitAnd", "bitand", false),
+        Wrapper::BitOr => ("BitOr", "bitor", false),
+        Wrapper::BitXor => ("BitXor", "bitxor", false),
+        _ => return None,
+    };
+    Some(OperatorSpec {
+        trait_name,
+        method,
+        unary,
+    })
+}
+
+fn wrapper_mut_operator(wrapper: WrapperMut) -> Option<OperatorSpec> {
+    let (trait_name, method) = match wrapper {
+        WrapperMut::AddAssign => ("AddAssign", "add_assign"),
+        WrapperMut::SubAssign => ("SubAssign", "sub_assign"),
+        WrapperMut::MulAssign => ("MulAssign", "mul_assign"),
+        WrapperMut::DivAssign => ("DivAssign", "div_assign"),
+        WrapperMut::RemAssign => ("RemAssign", "rem_assign"),
+        WrapperMut::ShlAssign => ("ShlAssign", "shl_assign"),
+        WrapperMut::ShrAssign => ("ShrAssign", "shr_assign"),
+        WrapperMut::BitAndAssign => ("BitAndAssign", "bitand_assign"),
+        WrapperMut::BitOrAssign => ("BitOrAssign", "bitor_assign"),
+        WrapperMut::BitXorAssign => ("BitXorAssign", "bitxor_assign"),
+        _ => return None,
+    };
+    Some(OperatorSpec {
+        trait_name,
+        method,
+        unary: false,
+    })
+}
+
+fn operator_impl(
+    input: &DeriveInput,
+    field: &TokenStream2,
+    operator: OperatorSpec,
+) -> TokenStream2 {
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let ident = &input.ident;
+    let trait_name = Ident::new(operator.trait_name, Span::call_site());
+    let method = Ident::new(operator.method, Span::call_site());
+    let update = match &input.data {
+        Data::Struct(data) if data.fields.len() > 1 => quote!(..self),
+        _ => TokenStream2::new(),
+    };
+    if operator.unary {
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
+                type Output = Self;
+
+                #[inline]
+                fn #method(self) -> Self {
+                    Self {
+                        #field: ::core::ops::#trait_name::#method(self.#field),
+                        #update
                     }
                 }
             }
-            WrapperMut::IndexRangeMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::Range<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::Range<usize>) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
+        }
+    } else {
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
+                type Output = Self;
+
+                #[inline]
+                fn #method(self, rhs: Self) -> Self {
+                    Self {
+                        #field: ::core::ops::#trait_name::#method(self.#field, rhs.#field),
+                        #update
                     }
                 }
             }
-            WrapperMut::IndexFromMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeFrom<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::RangeFrom<usize>) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
-                    }
-                }
+        }
+    }
+}
+
+fn assignment_impl(
+    input: &DeriveInput,
+    field: &TokenStream2,
+    operator: OperatorSpec,
+) -> TokenStream2 {
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let ident = &input.ident;
+    let trait_name = Ident::new(operator.trait_name, Span::call_site());
+    let method = Ident::new(operator.method, Span::call_site());
+    quote! {
+        #[automatically_derived]
+        impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
+            #[inline]
+            fn #method(&mut self, rhs: Self) {
+                ::core::ops::#trait_name::#method(&mut self.#field, rhs.#field)
             }
-            WrapperMut::IndexToMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeTo<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::RangeTo<usize>) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
-                    }
-                }
-            }
-            WrapperMut::IndexInclusiveMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeInclusive<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::RangeInclusive<usize>) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
-                    }
-                }
-            }
-            WrapperMut::IndexToInclusiveMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeToInclusive<usize>> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::RangeToInclusive<usize>) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
-                    }
-                }
-            }
-            WrapperMut::IndexFullMut => {
-                quote! {
-                    #[automatically_derived]
-                    impl <#impl_generics_params> ::core::ops::IndexMut<::core::ops::RangeFull> for #ident_name #ty_generics #where_clause
-                    {
-                        #[inline]
-                        fn index_mut(&mut self, index: ::core::ops::RangeFull) -> &mut Self::Output {
-                            self.as_mut().index_mut(index)
-                        }
-                    }
-                }
-            }
-            WrapperMut::AddAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::AddAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn add_assign(&mut self, rhs: Self) {
-                        ::core::ops::AddAssign::add_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::SubAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::SubAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn sub_assign(&mut self, rhs: Self) {
-                        ::core::ops::SubAssign::sub_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::MulAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::MulAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn mul_assign(&mut self, rhs: Self) {
-                        ::core::ops::MulAssign::mul_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::DivAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::DivAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn div_assign(&mut self, rhs: Self) {
-                        ::core::ops::DivAssign::div_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::RemAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::RemAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn rem_assign(&mut self, rhs: Self) {
-                        ::core::ops::RemAssign::rem_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::ShlAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::ShlAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn shl_assign(&mut self, rhs: Self) {
-                        ::core::ops::ShlAssign::shl_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::ShrAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::ShrAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn shr_assign(&mut self, rhs: Self) {
-                        ::core::ops::ShrAssign::shr_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::BitAndAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitAndAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn bitand_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitAndAssign::bitand_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::BitOrAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitOrAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn bitor_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitOrAssign::bitor_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::BitXorAssign => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::BitXorAssign for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn bitxor_assign(&mut self, rhs: Self) {
-                        ::core::ops::BitXorAssign::bitxor_assign(&mut self.#field, rhs.#field)
-                    }
-                }
-            },
-            WrapperMut::NoRefs |
-            WrapperMut::RangeMut |
-            WrapperMut::MathAssign |
-            WrapperMut::BoolAssign |
-            WrapperMut::BitAssign => unreachable!(),
         }
     }
 }
@@ -991,14 +636,27 @@ impl WrapperMut {
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let ident_name = &input.ident;
-    let amplify_crate = get_amplify_crate(&input);
+    let amplify_crate = amplify_crate(&input)?;
 
     let (field, from) = get_params(&input)?;
+    let from_conversion = if is_bare_type_parameter(&from, &input.generics) {
+        TokenStream2::new()
+    } else {
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for #from #where_clause {
+                #[inline]
+                fn from(wrapped: #ident_name #ty_generics) -> Self {
+                    wrapped.#field
+                }
+            }
+        }
+    };
 
     let wrappers = get_wrappers::<Wrapper>(&input)?;
     let wrapper_derive = wrappers
         .iter()
-        .map(|w| w.into_token_stream2(&input, &from, &field));
+        .map(|w| w.into_token_stream2(&input, &from, &field, &amplify_crate));
 
     Ok(quote! {
         #[automatically_derived]
@@ -1007,7 +665,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
 
             #[inline]
             fn from_inner(inner: Self::Inner) -> Self {
-                Self::from(inner)
+                <Self as ::core::convert::From<Self::Inner>>::from(inner)
             }
 
             #[inline]
@@ -1021,29 +679,33 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
 
-        #[automatically_derived]
-        impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for #from #where_clause {
-            #[inline]
-            fn from(wrapped: #ident_name #ty_generics) -> Self {
-                wrapped.#field
-            }
-        }
+        #from_conversion
 
         #( #wrapper_derive )*
     })
 }
 
+fn is_bare_type_parameter(ty: &Type, generics: &syn::Generics) -> bool {
+    let Type::Path(ty) = ty else {
+        return false;
+    };
+    let Some(ident) = ty.path.get_ident() else {
+        return false;
+    };
+    generics.type_params().any(|param| param.ident == *ident)
+}
+
 pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let ident_name = &input.ident;
-    let amplify_crate = get_amplify_crate(&input);
+    let amplify_crate = amplify_crate(&input)?;
 
     let (field, from) = get_params(&input)?;
 
     let wrappers = get_wrappers::<WrapperMut>(&input)?;
     let wrapper_derive = wrappers
         .iter()
-        .map(|w| w.into_token_stream2(&input, &from, &field));
+        .map(|w| w.into_token_stream2(&input, &from, &field, &amplify_crate));
 
     Ok(quote! {
         #[automatically_derived]
@@ -1058,115 +720,66 @@ pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
     })
 }
 
+/// Finds the wrapped field: the one marked with `#[wrap]`, or the only one.
 fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
-    let data = match input.data {
-        Data::Struct(ref data) => data,
+    let fields = match &input.data {
+        Data::Struct(data) => &data.fields,
         Data::Enum(_) => {
             return Err(Error::new_spanned(input, "Deriving wrapper is not supported in enums"));
         }
-        //strict_encode_inner_enum(&input, &data),
         Data::Union(_) => {
             return Err(Error::new_spanned(input, "Deriving wrapper is not supported in unions"));
         }
     };
 
-    let field;
-    let mut from;
-    match data.fields {
-        Fields::Named(ref fields) => {
-            let mut source = None;
-            from = fields.named[0].ty.clone();
-            for field in &fields.named {
-                for attr in &field.attrs {
-                    if attr.path.is_ident("wrap") {
-                        if source.is_some() {
-                            return Err(Error::new_spanned(
-                                attr,
-                                "Only a single field may be wrapped",
-                            ));
-                        }
-                        source = Some(field.ident.clone().expect("we know it's named"));
-                        from = field.ty.clone();
-                    }
-                }
+    let rules = AttrReq::new("wrap");
+    let mut wrapped = None;
+    for (field, member) in fields.iter().zip(fields.members()) {
+        if let Some(attr) = rules.single(&field.attrs)? {
+            if wrapped.is_some() {
+                return Err(attr.error("only a single field may be wrapped"));
             }
-            if source.is_none() && fields.named.len() > 1 {
-                return Err(Error::new_spanned(
-                    fields,
-                    "When the structure has multiple fields you must point out the one you will \
-                     wrap by using `#[wrap]` attribute",
-                ));
-            }
-            let source = source
-                .unwrap_or_else(|| fields.named[0].ident.clone().expect("we know it's named"));
-            field = quote! { #source };
+            wrapped = Some((field, member));
         }
-        Fields::Unnamed(ref fields) => {
-            let mut source = None;
-            from = fields.unnamed[0].ty.clone();
-            for (index, field) in fields.unnamed.iter().enumerate() {
-                for attr in &field.attrs {
-                    if attr.path.is_ident("wrap") {
-                        if source.is_some() {
-                            return Err(Error::new_spanned(
-                                attr,
-                                "Only a single field may be wrapped",
-                            ));
-                        }
-                        let i = Index::from(index);
-                        source = Some(quote! { #i });
-                        from = field.ty.clone();
-                    }
-                }
-            }
-            if source.is_none() && fields.unnamed.len() > 1 {
-                return Err(Error::new_spanned(
-                    fields,
-                    "When the structure has multiple fields you must point out the one you will \
-                     wrap by using `#[wrap]` attribute",
-                ));
-            }
-            field = source.unwrap_or(quote! { 0 });
-        }
-        Fields::Unit => {
+    }
+
+    let wrapped = match (wrapped, fields) {
+        (Some(wrapped), _) => Some(wrapped),
+        (None, Fields::Unit) => {
             return Err(Error::new_spanned(
                 input,
                 "Deriving wrapper is meaningless for unit structs",
             ));
         }
+        (None, _) if fields.len() > 1 => {
+            return Err(Error::new_spanned(
+                fields,
+                "When the structure has multiple fields you must point out the one you will wrap \
+                 by using `#[wrap]` attribute",
+            ));
+        }
+        (None, _) => fields.iter().zip(fields.members()).next(),
     };
-    Ok((field, from))
+    let Some((field, member)) = wrapped else {
+        return Err(Error::new_spanned(input, "a wrapper must have at least one field"));
+    };
+    Ok((quote! { #member }, field.ty.clone()))
 }
 
-fn get_wrappers<T: FromPath>(input: &DeriveInput) -> Result<Vec<T>> {
-    let mut wrappers = T::default_set();
-    const WRAPPER_DERIVE_ERR: &str = "Wrapper attributes must be in a form of type list";
-    for attr in input
-        .attrs
-        .iter()
-        .filter(|attr| attr.path.is_ident(T::IDENT))
-    {
-        match attr
-            .parse_meta()
-            .map_err(|_| attr_err!(attr, WRAPPER_DERIVE_ERR))?
-        {
-            Meta::List(MetaList { nested, .. }) => {
-                for meta in nested {
-                    match meta {
-                        NestedMeta::Meta(Meta::Path(path)) => {
-                            T::from_path(&path)?
-                                .ok_or_else(|| attr_err!(path, "Unrecognized wrapper parameter"))?
-                                .populate(&mut wrappers);
-                        }
-                        _ => return Err(attr_err!(meta, WRAPPER_DERIVE_ERR)),
-                    }
-                }
-            }
-            _ => return Err(attr_err!(attr, WRAPPER_DERIVE_ERR)),
+/// Reads the traits to derive from the attribute of `T`.
+fn get_wrappers<T: Wrappers>(input: &DeriveInput) -> Result<Vec<T>> {
+    let names = T::NAMES.iter().map(|(name, _)| *name);
+    let rules = AttrReq::new(T::ATTR).unnamed(ListReq::any_of(names));
+    let attr = rules.merged(&input.attrs)?;
+
+    let mut wrappers = T::REFS.to_vec();
+    for ident in attr.unnamed().iter().filter_map(Value::as_ident) {
+        if let Some((_, wrapper)) = T::NAMES.iter().find(|(name, _)| ident == name) {
+            wrapper.populate(&mut wrappers);
         }
     }
     if wrappers.contains(&T::NO_REFS) {
-        wrappers = wrappers.into_iter().filter(T::is_not_ref).collect();
+        wrappers.retain(|wrapper| *wrapper != T::NO_REFS && !T::REFS.contains(wrapper));
     }
     Ok(wrappers)
 }

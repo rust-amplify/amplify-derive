@@ -14,19 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain: [ nightly, beta, stable, 1.66.0 ]
+        toolchain: [ nightly, beta, stable, 1.100.0 ]
     steps:
-      - uses: actions/checkout@v2
-      - name: Install rust ${{matrix.toolchain}}
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v7
+      - name: Install Rust ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{matrix.toolchain}}
-          override: true
       - uses: Swatinem/rust-cache@v2
       - name: All features
-        uses: actions-rs/cargo@v1
-        env:
-          RUSTFLAGS: "--cfg bench"
-        with:
-          command: check
-          args: --workspace --all-targets --all-features
+        run: cargo check --workspace --all-targets --all-features

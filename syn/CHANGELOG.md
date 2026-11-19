@@ -1,6 +1,31 @@
 Change Log
 ==========
 
+3.0.0
+-----
+- Rebuilt the crate on `syn` 3, Rust 1.100.0, and edition 2024.
+- New attribute grammar: `Attr`, `Form`, `Arg`, `NamedArg` and `Value`. It
+  reads types which are not paths (`&'static str`, `[u8; 4]`, `!`) and
+  expression values, keeps repeated attributes apart, and its errors preserve
+  token spans.
+- The attribute rules are rebuilt on that grammar:
+  - `AttrReq` is declared with a builder (`arg`, `mandatory`, `conflict`,
+    `unnamed`, `name_value`) and reads attributes itself: once per item
+    (`single`), merged over all occurrences (`merged`) or occurrence by
+    occurrence (`each`).
+  - `ArgValueReq` keeps `Prohibited`, `Optional` and `Required` with an
+    optional default. It no longer decides whether the argument must be given;
+    `AttrReq::mandatory` does.
+  - `ListReq` describes all unnamed arguments at once: their `ValueClass`es,
+    their number and, with `any_of`, the identifiers accepted.
+  - `ParametrizedAttr` is the checked content of an attribute and is read
+    through `has`, `value`, `str` and `unnamed`.
+  - Every violation is a `syn::Error` at the offending argument, all violations
+    of an attribute are reported together, and no input panics.
+- Removed `ExtractAttr`, `SingularAttr`, `ArgValue`, `ValueReq`, `LiteralClass`,
+  `TypeClass`, the `MetaArg` parsers, `DataType` with the derive scaffolding
+  around it, the custom `Error` type, and the `ident!` and `path!` macros.
+
 1.1.0
 -----
 - Custom parsers allowing attribute values to take any form, not only literals

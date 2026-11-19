@@ -1,0 +1,5 @@
+error: expected a type
+ --> tests/ui/from_literal.rs:4:8
+  |
+4 | #[from("u8")]
+  |        ^^^^

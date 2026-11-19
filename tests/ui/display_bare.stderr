@@ -1,0 +1,5 @@
+error: `display` requires an argument: expected a string literal or a path
+ --> tests/ui/display_bare.rs:4:3
+  |
+4 | #[display]
+  |   ^^^^^^^

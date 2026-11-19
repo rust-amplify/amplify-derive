@@ -1,0 +1,5 @@
+error: `display` requires the `separator` argument
+ --> tests/ui/display_field_bare.rs:6:7
+  |
+6 |     #[display]
+  |       ^^^^^^^

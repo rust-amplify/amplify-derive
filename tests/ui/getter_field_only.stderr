@@ -1,0 +1,11 @@
+error: unknown `getter` argument `skip`
+ --> tests/ui/getter_field_only.rs:4:10
+  |
+4 | #[getter(skip, base_name = "item")]
+  |          ^^^^
+
+error: unknown `getter` argument `base_name`
+ --> tests/ui/getter_field_only.rs:4:16
+  |
+4 | #[getter(skip, base_name = "item")]
+  |                ^^^^^^^^^

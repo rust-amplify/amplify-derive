@@ -1,0 +1,5 @@
+error: expected a string literal
+ --> tests/ui/display_bad_alt.rs:4:26
+  |
+4 | #[display("value", alt = 5)]
+  |                          ^

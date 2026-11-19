@@ -1,0 +1,5 @@
+error: expected `#[from(...)]`, found `#[from = ...]`
+ --> tests/ui/from_bad_value.rs:4:3
+  |
+4 | #[from = "u8"]
+  |   ^^^^

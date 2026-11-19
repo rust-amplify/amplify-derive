@@ -14,15 +14,20 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
 use syn::{DeriveInput, Result};
 
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let ident_name = &input.ident;
+    let amplify_crate = match crate::util::explicit_amplify_crate(&input)? {
+        Some(path) => quote! { #path },
+        None => quote! { ::amplify },
+    };
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics ::amplify::AsAny for #ident_name #ty_generics #where_clause {
+        impl #impl_generics #amplify_crate::AsAny for #ident_name #ty_generics #where_clause {
            fn as_any(&self) -> &dyn ::core::any::Any {
                 self as &dyn ::core::any::Any
             }

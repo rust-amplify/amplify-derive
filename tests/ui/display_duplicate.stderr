@@ -1,0 +1,5 @@
+error: only one `display` attribute is allowed
+ --> tests/ui/display_duplicate.rs:5:3
+  |
+5 | #[display("second")]
+  |   ^^^^^^^
