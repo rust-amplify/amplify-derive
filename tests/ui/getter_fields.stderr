@@ -1,0 +1,17 @@
+error: unknown `getter` argument `as_cpoy`
+ --> tests/ui/getter_fields.rs:5:14
+  |
+5 |     #[getter(as_cpoy)]
+  |              ^^^^^^^
+
+error: expected a string literal
+ --> tests/ui/getter_fields.rs:8:23
+  |
+8 |     #[getter(prefix = 5)]
+  |                       ^
+
+error: `self` cannot be used as a method name
+  --> tests/ui/getter_fields.rs:11:5
+   |
+11 |     fourth: u8,
+   |     ^^^^^^

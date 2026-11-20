@@ -1,17 +1,20 @@
 // Rust language amplification derive library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
+// SPDX-License-Identifier: Apache-2.0
+//
 // Written in 2019-2021 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
 use std::fmt::{self, Display, Formatter};
 use std::slice;
@@ -304,8 +307,16 @@ impl AttrReq {
 
     /// Declares that the argument `name` cannot be used together with any of
     /// `others`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if one of the arguments is not declared yet.
     #[must_use]
     pub fn conflict(mut self, name: &'static str, others: &[&'static str]) -> Self {
+        for name in others.iter().chain([&name]) {
+            let declared = self.args.iter().any(|arg| arg.name == *name);
+            assert!(declared, "the rules declare no argument `{name}`");
+        }
         let pairs = others.iter().map(|other| (name, *other));
         self.conflicts.extend(pairs);
         self
@@ -356,16 +367,8 @@ impl AttrReq {
         &self,
         attrs: impl IntoIterator<Item = &'a Attribute>,
     ) -> Result<Vec<ParametrizedAttr>> {
-        let mut errors = Errors::default();
-        let mut contents = Vec::new();
-        for attr in Attr::find_all(attrs, self.name)? {
-            match self.check(slice::from_ref(&attr)) {
-                Ok(content) => contents.push(content),
-                Err(error) => errors.push(error),
-            }
-        }
-        errors.finish()?;
-        Ok(contents)
+        let found = Attr::find_all(attrs, self.name)?;
+        collect_all(found.iter().map(|attr| self.check(slice::from_ref(attr))))
     }
 
     /// Checks parsed occurrences of the attribute, read as one list of
@@ -378,6 +381,7 @@ impl AttrReq {
                 span: occurrences
                     .first()
                     .map_or_else(Span::call_site, |attr| attr.path.span()),
+                declared: self.args.iter().map(|arg| arg.name).collect(),
                 named: Vec::new(),
                 unnamed: Vec::new(),
             },
@@ -551,6 +555,36 @@ impl Check<'_> {
     fn error(&mut self, at: &impl ToTokens, message: String) {
         self.errors.push(Error::new_spanned(at, message));
     }
+}
+
+/// Collects the values of `results`, or all of their errors as one.
+///
+/// A derive macro reads the attributes of fields and variants through this
+/// function, so that it reports every faulty one, not just the first.
+///
+/// ```
+/// use amplify_syn::{AttrReq, collect_all};
+/// use syn::{DeriveInput, parse_quote};
+///
+/// let input: DeriveInput = parse_quote! {
+///     struct Item(#[wrap(x)] u8, #[wrap] u8, #[wrap = 1] u8);
+/// };
+/// let syn::Data::Struct(data) = &input.data else { unreachable!() };
+/// let rules = AttrReq::new("wrap");
+/// let errors = collect_all(data.fields.iter().map(|field| rules.single(&field.attrs)));
+/// assert_eq!(errors.unwrap_err().into_iter().count(), 2);
+/// ```
+pub fn collect_all<T>(results: impl IntoIterator<Item = Result<T>>) -> Result<Vec<T>> {
+    let mut errors = Errors::default();
+    let mut values = Vec::new();
+    for result in results {
+        match result {
+            Ok(value) => values.push(value),
+            Err(error) => errors.push(error),
+        }
+    }
+    errors.finish()?;
+    Ok(values)
 }
 
 /// Collects independent errors and reports them together.
@@ -811,6 +845,19 @@ mod tests {
             "expected an identifier",
             "expected an identifier",
         ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "the rules declare no argument `skp`")]
+    fn asking_for_an_undeclared_argument_panics() {
+        let attr = getter().merged(&attrs("#[getter(all)]"));
+        attr.expect("the rules accept the attribute").has("skp");
+    }
+
+    #[test]
+    #[should_panic(expected = "the rules declare no argument `as_cpoy`")]
+    fn a_conflict_with_an_undeclared_argument_panics() {
+        let _ = getter().conflict("all", &["as_cpoy"]);
     }
 
     #[test]

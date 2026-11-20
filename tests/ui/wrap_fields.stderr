@@ -1,0 +1,11 @@
+error: unknown `wrap` argument `yes`
+ --> tests/ui/wrap_fields.rs:4:20
+  |
+4 | struct Item(#[wrap(yes)] u8, u16, #[wrap = 1] u8);
+  |                    ^^^
+
+error: `wrap` takes no value
+ --> tests/ui/wrap_fields.rs:4:44
+  |
+4 | struct Item(#[wrap(yes)] u8, u16, #[wrap = 1] u8);
+  |                                            ^

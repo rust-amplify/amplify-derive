@@ -36,6 +36,7 @@ rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 readme = "README.md"
+include = ["src/**", "tests/**", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [lib]
 proc-macro = true
@@ -48,10 +49,8 @@ amplify_syn = { version = "3.0.0", path = "syn" }
 
 [dev-dependencies]
 amplify = { version = "4.0.0", default-features = false, features = ["std", "hex"] }
+prettyplease = "0.3"
 trybuild = "1"
 
 [lints]
 workspace = true
-
-[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen-test = "0.3"

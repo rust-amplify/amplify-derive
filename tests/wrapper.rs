@@ -165,6 +165,56 @@ struct MultiField {
     other: i32,
 }
 
+#[derive(Wrapper, WrapperMut, From)]
+#[wrapper(AsRef, Borrow)]
+#[wrapper_mut(AsMut, BorrowMut)]
+struct NamedDefaults(u8);
+
+#[derive(Wrapper, WrapperMut, From)]
+#[wrapper(NoRefs, AsRef)]
+#[wrapper_mut(NoRefs, AsMut)]
+struct OneOfEachPair(u8);
+
+// The derives leave these out, or the impls would conflict.
+impl std::borrow::Borrow<u8> for OneOfEachPair {
+    fn borrow(&self) -> &u8 { &0 }
+}
+
+impl std::borrow::BorrowMut<u8> for OneOfEachPair {
+    fn borrow_mut(&mut self) -> &mut u8 { &mut self.0 }
+}
+
+#[derive(Wrapper, WrapperMut, From)]
+#[wrapper(BoolOps, BitOps, Not, Exp, NumberFmt, Add)]
+#[wrapper_mut(BoolAssign, BitAssign, ShlAssign, AddAssign)]
+struct Overlapping(u8);
+
+#[derive(Wrapper, From)]
+struct Boxed<T>(Box<T>);
+
+#[derive(Wrapper, From)]
+struct Borrowed<'a, T>(&'a T);
+
+#[derive(Wrapper, WrapperMut, From)]
+struct BorrowedMut<'a, T>(&'a mut T);
+
+#[derive(Wrapper, From)]
+struct Pinned<T>(std::pin::Pin<Box<T>>);
+
+#[derive(Wrapper, WrapperMut, From)]
+#[wrapper(FromStr, Display, Debug, LowerHex, Neg, Add, Shl)]
+#[wrapper_mut(AddAssign)]
+struct GenericNumber<T>(T);
+
+#[derive(Wrapper, WrapperMut, From)]
+#[wrapper(Deref, AsSlice, BorrowSlice, Index, RangeOps)]
+#[wrapper_mut(DerefMut, AsSliceMut, BorrowSliceMut, IndexMut, RangeMut)]
+struct GenericBytes<T>(T);
+
+#[derive(Wrapper, From)]
+#[wrapper(FromHex)]
+struct GenericHex<T>(T);
+
 mod result_alias {
     #[allow(dead_code)]
     type Result<T, E> = std::result::Result<T, (E, ())>;
@@ -363,4 +413,65 @@ fn wraps_formatting_references_ranges_and_operators() {
     let mut no_refs = NoRefNumber::from(vec![5, 6]);
     no_refs.as_inner_mut()[0] = 7;
     assert_eq!(no_refs.as_inner(), &vec![7, 6]);
+}
+
+#[test]
+fn default_traits_can_be_named_and_overlapping_names_derive_once() {
+    let mut named = NamedDefaults::from(1);
+    assert_eq!(std::convert::AsRef::<u8>::as_ref(&named), &1);
+    assert_eq!(std::borrow::Borrow::<u8>::borrow(&named), &1);
+    *std::convert::AsMut::<u8>::as_mut(&mut named) = 2;
+    *std::borrow::BorrowMut::<u8>::borrow_mut(&mut named) = 3;
+    assert_eq!(named.0, 3);
+
+    let mut one = OneOfEachPair::from(1);
+    assert_eq!(std::convert::AsRef::<u8>::as_ref(&one), &1);
+    assert_eq!(std::borrow::Borrow::<u8>::borrow(&one), &0);
+    *std::convert::AsMut::<u8>::as_mut(&mut one) = 2;
+    assert_eq!(one.0, 2);
+
+    let mut overlapping = !Overlapping::from(0b1010) & Overlapping::from(0b1111);
+    overlapping <<= Overlapping::from(1);
+    overlapping |= Overlapping::from(1);
+    overlapping += Overlapping::from(1);
+    assert_eq!((overlapping + Overlapping::from(1)).0, 0b1101);
+    assert_eq!(format!("{:x} {:e}", Overlapping::from(255), Overlapping::from(2)), "ff 2e0");
+}
+
+#[test]
+fn wraps_type_parameters_behind_fundamental_types() {
+    assert_eq!(*Boxed::from(Box::new(1)).into_inner(), 1);
+    assert_eq!(Borrowed::from(&1).into_inner(), &1);
+    let mut value = 1;
+    let mut borrowed = BorrowedMut::from(&mut value);
+    **borrowed.as_inner_mut() = 2;
+    assert_eq!(value, 2);
+    assert_eq!(*Pinned::from(Box::pin(1)).into_inner(), 1);
+}
+
+#[test]
+fn derives_traits_for_generic_inner_types() {
+    use std::str::FromStr;
+
+    let mut number = GenericNumber::<i32>::from_str("6").unwrap();
+    number += GenericNumber::from(1);
+    let number = -(number + GenericNumber::from(1)) << GenericNumber::from(1);
+    assert_eq!(format!("{number} {number:?} {:x}", GenericNumber::from(255u8)), "-16 -16 ff");
+    // A wrapper of a type without the trait stays usable.
+    assert!(GenericNumber::from(()).as_inner() == &());
+
+    let mut bytes = GenericBytes::from(vec![1u8, 2, 3]);
+    bytes[0] = 4;
+    bytes[1..].copy_from_slice(&[5, 6]);
+    bytes.push(7);
+    std::convert::AsMut::<[u8]>::as_mut(&mut bytes)[3] = 8;
+    std::borrow::BorrowMut::<[u8]>::borrow_mut(&mut bytes)[3] += 1;
+    assert_eq!(std::convert::AsRef::<[u8]>::as_ref(&bytes), &[4, 5, 6, 9]);
+    assert_eq!(std::borrow::Borrow::<[u8]>::borrow(&bytes), &bytes[..]);
+    assert_eq!(bytes.len(), 4);
+
+    let hex = <GenericHex<Vec<u8>> as amplify::hex::FromHex>::from_byte_iter(
+        vec![Ok(0xab), Ok(0xcd)].into_iter(),
+    );
+    assert_eq!(hex.unwrap().0, vec![0xab, 0xcd]);
 }

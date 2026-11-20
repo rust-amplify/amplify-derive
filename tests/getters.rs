@@ -67,6 +67,20 @@ struct CopyWithMut {
 }
 
 #[derive(Getters, Default)]
+#[getter(as_clone, as_ref, as_mut)]
+struct Sets {
+    name: String,
+    #[getter(as_copy)]
+    flag: bool,
+    #[getter(as_ref)]
+    list: Vec<u8>,
+    #[getter(as_copy, as_ref)]
+    count: u8,
+    #[getter(as_copy, as_ref = "_borrowed", as_mut = "_changed")]
+    size: u8,
+}
+
+#[derive(Getters, Default)]
 struct Suffixes {
     #[getter(as_copy = "_copy", as_ref = "_ref", as_mut = "_mutable")]
     value: u8,
@@ -118,11 +132,10 @@ fn generates_documented_getter_variants_and_overrides() {
     let overrides = Overrides::default();
     assert_eq!(overrides.vec(), &Vec::<u8>::new());
     assert_eq!(overrides.defaults(), String::new());
-    assert!(!overrides.flag());
-    // A field without its own `#[getter]` gets the default borrowing getter;
-    // the type-level `as_copy` does not reach it.
-    assert_eq!(overrides.flag(), &false);
-    assert_eq!(overrides.field(), &0);
+    // A field without its own `#[getter]` takes the type-level `as_copy`.
+    let flag: bool = overrides.flag();
+    let field: u8 = overrides.field();
+    assert_eq!((flag, field), (false, 0));
 
     let mut advanced = Advanced::default();
     assert_eq!(advanced.get_bytes_ref(), &Vec::<u8>::new());
@@ -149,7 +162,35 @@ fn generates_documented_getter_variants_and_overrides() {
     assert_eq!(copied, 0);
     *copy_with_mut.value_mut() = 2;
     assert_eq!(copy_with_mut.value(), 2);
-    assert_eq!(copy_with_mut.get_other(), &0);
+    // ... and so does a field naming only a prefix.
+    let other: u8 = copy_with_mut.get_other();
+    assert_eq!(other, 0);
+
+    // The copying, cloning and borrowing getters named by a field replace the
+    // ones named by the type; `as_mut` of the type stays.
+    let mut sets = Sets::default();
+    let name: String = sets.name();
+    let name_ref: &String = sets.name_ref();
+    assert_eq!(&name, name_ref);
+    sets.name_mut().push('x');
+    let flag: bool = sets.flag();
+    *sets.flag_mut() = !flag;
+    let list: &Vec<u8> = sets.list();
+    assert!(list.is_empty());
+    sets.list_mut().push(1);
+    // A bare `as_ref` next to a copying getter is named with `_ref`.
+    let count: u8 = sets.count();
+    let count_ref: &u8 = sets.count_ref();
+    assert_eq!(&count, count_ref);
+    *sets.count_mut() += 1;
+    let size: u8 = sets.size();
+    let size_borrowed: &u8 = sets.size_borrowed();
+    assert_eq!(&size, size_borrowed);
+    *sets.size_changed() += 1;
+    assert_eq!(
+        (sets.name(), sets.flag(), sets.list(), sets.count(), sets.size()),
+        ("x".to_owned(), true, &vec![1], 1, 1)
+    );
 
     // A value of a method argument replaces the suffix of the method name,
     // and the arguments of several attributes add up.

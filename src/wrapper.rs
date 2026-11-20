@@ -1,24 +1,30 @@
 // Rust language amplification derive library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
+// SPDX-License-Identifier: Apache-2.0
+//
 // Written in 2019-2020 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
-use amplify_syn::{AttrReq, ListReq, Value};
+use amplify_syn::{AttrReq, ListReq, Value, collect_all};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use quote::quote;
-use syn::{Data, DeriveInput, Error, Fields, Path, Result, Type};
+use quote::{format_ident, quote};
+use syn::{
+    Data, DeriveInput, Error, Fields, GenericArgument, Generics, Member, Path, PathArguments,
+    Result, Type,
+};
 
-use crate::util::amplify_crate;
+use crate::util::{Bounds, amplify_crate};
 
 /// The variants of an enum by their names.
 trait Names: Sized + 'static {
@@ -39,7 +45,7 @@ macro_rules! names {
 }
 
 names! {
-    #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     enum Wrapper {
         NoRefs,
         // Formatting
@@ -92,7 +98,7 @@ names! {
 }
 
 names! {
-    #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     enum WrapperMut {
         NoRefs,
         // References
@@ -136,12 +142,55 @@ names! {
 trait Wrappers: Names + Copy + PartialEq {
     /// The attribute which lists the traits.
     const ATTR: &'static str;
-    /// The marker which takes the reference traits off the list.
+    /// The marker which takes the default traits off the list.
     const NO_REFS: Self;
-    /// The reference traits, which are derived unless `NoRefs` is given.
+    /// The traits which are derived unless `NoRefs` is given.
     const REFS: [Self; 2];
-    /// Adds the trait, or the traits a group name stands for, to the list.
-    fn populate(self, list: &mut Vec<Self>);
+
+    /// Returns the traits a group name stands for.
+    fn group(self) -> &'static [Self];
+
+    /// Generates the implementation of the trait the attribute is named
+    /// after, with what comes along with it.
+    fn base(wrapped: &Wrapped<'_>) -> TokenStream2;
+
+    /// Generates the implementation of the trait.
+    fn implement(self, wrapped: &Wrapped<'_>) -> TokenStream2;
+
+    /// Reads the traits to derive from the attribute. A trait is derived
+    /// once, however often it is named.
+    fn read(input: &DeriveInput) -> Result<Vec<Self>> {
+        let names = Self::NAMES.iter().map(|(name, _)| *name);
+        let rules = AttrReq::new(Self::ATTR).unnamed(ListReq::any_of(names));
+        let attr = rules.merged(&input.attrs)?;
+
+        let mut named = Vec::new();
+        for ident in attr.unnamed().iter().filter_map(Value::as_ident) {
+            match Self::NAMES.iter().find(|(name, _)| ident == name) {
+                Some((_, wrapper)) if wrapper.group().is_empty() => named.push(*wrapper),
+                Some((_, wrapper)) => named.extend(wrapper.group()),
+                None => {}
+            }
+        }
+        let mut wrappers = Vec::new();
+        if !named.contains(&Self::NO_REFS) {
+            wrappers.extend(Self::REFS);
+        }
+        for wrapper in named {
+            if wrapper != Self::NO_REFS && !wrappers.contains(&wrapper) {
+                wrappers.push(wrapper);
+            }
+        }
+        Ok(wrappers)
+    }
+
+    /// Returns the name of the variant, which is the name of the trait.
+    fn name(self) -> &'static str {
+        let mut names = Self::NAMES.iter();
+        names
+            .find(|(_, variant)| *variant == self)
+            .map_or("", |(name, _)| name)
+    }
 }
 
 impl Wrappers for Wrapper {
@@ -149,519 +198,39 @@ impl Wrappers for Wrapper {
     const NO_REFS: Self = Self::NoRefs;
     const REFS: [Self; 2] = [Self::AsRef, Self::Borrow];
 
-    fn populate(self, list: &mut Vec<Self>) {
-        let ext = match self {
-            Wrapper::Hex => &[Wrapper::LowerHex, Wrapper::UpperHex, Wrapper::FromHex] as &[_],
-            Wrapper::Exp => &[Wrapper::LowerExp, Wrapper::UpperExp] as &[_],
-            Wrapper::NumberFmt => &[
-                Wrapper::LowerHex,
-                Wrapper::UpperHex,
-                Wrapper::LowerExp,
-                Wrapper::UpperExp,
-                Wrapper::Octal,
-            ] as &[_],
-            Wrapper::RangeOps => &[
-                Wrapper::IndexRange,
-                Wrapper::IndexFrom,
-                Wrapper::IndexTo,
-                Wrapper::IndexInclusive,
-                Wrapper::IndexToInclusive,
-                Wrapper::IndexFull,
-            ] as &[_],
-            Wrapper::MathOps => &[
-                Wrapper::Neg,
-                Wrapper::Add,
-                Wrapper::Sub,
-                Wrapper::Mul,
-                Wrapper::Div,
-                Wrapper::Rem,
-            ] as &[_],
-            Wrapper::BoolOps => {
-                &[Wrapper::Not, Wrapper::BitAnd, Wrapper::BitOr, Wrapper::BitXor] as &[_]
-            }
-            Wrapper::BitOps => &[
-                Wrapper::Not,
-                Wrapper::BitAnd,
-                Wrapper::BitOr,
-                Wrapper::BitXor,
-                Wrapper::Shl,
-                Wrapper::Shr,
-            ] as &[_],
-            x => {
-                list.push(x);
-                &[] as &[_]
-            }
-        };
-        list.extend(ext);
-    }
-}
-
-impl Wrapper {
-    pub fn into_token_stream2(
-        self,
-        input: &DeriveInput,
-        from: &Type,
-        field: &TokenStream2,
-        amplify_crate: &Path,
-    ) -> TokenStream2 {
-        if let Some(trait_name) = formatting_trait(self) {
-            return formatting_impl(trait_name, input, field);
-        }
-        if let Some(index_type) = wrapper_index_type(self) {
-            return index_impl(input, from, field, &index_type, false);
-        }
-        if let Some(operator) = wrapper_operator(self) {
-            return operator_impl(input, field, operator);
-        }
-
-        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-        let ident_name = &input.ident;
-
+    fn group(self) -> &'static [Self] {
         match self {
-            Wrapper::FromStr => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::str::FromStr for #ident_name #ty_generics #where_clause
-                {
-                    type Err = <<Self as #amplify_crate::Wrapper>::Inner as ::core::str::FromStr>::Err;
-
-                    #[inline]
-                    fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
-                        <#from as ::core::str::FromStr>::from_str(s).map(<Self as ::core::convert::From<#from>>::from)
-                    }
-                }
-            },
-            Wrapper::FromHex => quote! {
-                #[automatically_derived]
-                impl #impl_generics #amplify_crate::hex::FromHex for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn from_byte_iter<I>(
-                        iter: I,
-                    ) -> ::core::result::Result<Self, #amplify_crate::hex::Error>
-                    where
-                        I: ::core::iter::Iterator<
-                                Item = ::core::result::Result<u8, #amplify_crate::hex::Error>,
-                            >
-                            + ::core::iter::ExactSizeIterator
-                            + ::core::iter::DoubleEndedIterator,
-                    {
-                        <#from as #amplify_crate::hex::FromHex>::from_byte_iter(iter).map(<Self as ::core::convert::From<#from>>::from)
-                    }
-                }
-            },
-            Wrapper::Deref => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::Deref for #ident_name #ty_generics #where_clause
-                {
-                    type Target = #from;
-                    #[inline]
-                    fn deref(&self) -> &Self::Target {
-                        &self.#field
-                    }
-                }
-            },
-            Wrapper::AsRef => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::convert::AsRef<#from> for #ident_name #ty_generics #where_clause {
-                    #[inline]
-                    fn as_ref(&self) -> &#from {
-                        &self.#field
-                    }
-                }
-            },
-            Wrapper::AsSlice => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::convert::AsRef<[u8]> for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn as_ref(&self) -> &[u8] {
-                        ::core::convert::AsRef::<[u8]>::as_ref(&self.#field)
-                    }
-                }
-            },
-            Wrapper::Borrow => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::borrow::Borrow<#from> for #ident_name #ty_generics #where_clause {
-                    #[inline]
-                    fn borrow(&self) -> &#from {
-                        &self.#field
-                    }
-                }
-            },
-            Wrapper::BorrowSlice => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::borrow::Borrow<[u8]> for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn borrow(&self) -> &[u8] {
-                        ::core::borrow::Borrow::<[u8]>::borrow(&self.#field)
-                    }
-                }
-            },
-            // Formatting, index and operator traits are generated from the tables below;
-            // `NoRefs` and the group names are resolved before code generation.
-            _ => TokenStream2::new(),
-        }
-    }
-}
-
-impl Wrappers for WrapperMut {
-    const ATTR: &'static str = "wrapper_mut";
-    const NO_REFS: Self = Self::NoRefs;
-    const REFS: [Self; 2] = [Self::AsMut, Self::BorrowMut];
-
-    fn populate(self, list: &mut Vec<Self>) {
-        let exp = match self {
-            WrapperMut::RangeMut => &[
-                WrapperMut::IndexRangeMut,
-                WrapperMut::IndexFromMut,
-                WrapperMut::IndexToMut,
-                WrapperMut::IndexInclusiveMut,
-                WrapperMut::IndexToInclusiveMut,
-                WrapperMut::IndexFullMut,
-            ] as &[_],
-            WrapperMut::MathAssign => &[
-                WrapperMut::AddAssign,
-                WrapperMut::SubAssign,
-                WrapperMut::MulAssign,
-                WrapperMut::DivAssign,
-                WrapperMut::RemAssign,
-            ] as &[_],
-            WrapperMut::BoolAssign => {
-                &[WrapperMut::BitAndAssign, WrapperMut::BitOrAssign, WrapperMut::BitXorAssign]
-                    as &[_]
+            Self::Hex => &[Self::LowerHex, Self::UpperHex, Self::FromHex],
+            Self::Exp => &[Self::LowerExp, Self::UpperExp],
+            Self::NumberFmt => {
+                &[Self::LowerHex, Self::UpperHex, Self::LowerExp, Self::UpperExp, Self::Octal]
             }
-            WrapperMut::BitAssign => &[
-                WrapperMut::BitAndAssign,
-                WrapperMut::BitOrAssign,
-                WrapperMut::BitXorAssign,
-                WrapperMut::ShlAssign,
-                WrapperMut::ShrAssign,
+            Self::RangeOps => &[
+                Self::IndexRange,
+                Self::IndexFrom,
+                Self::IndexTo,
+                Self::IndexInclusive,
+                Self::IndexToInclusive,
+                Self::IndexFull,
             ],
-            x => {
-                list.push(x);
-                &[] as &[_]
+            Self::MathOps => &[Self::Neg, Self::Add, Self::Sub, Self::Mul, Self::Div, Self::Rem],
+            Self::BoolOps => &[Self::Not, Self::BitAnd, Self::BitOr, Self::BitXor],
+            Self::BitOps => {
+                &[Self::Not, Self::BitAnd, Self::BitOr, Self::BitXor, Self::Shl, Self::Shr]
             }
-        };
-        list.extend(exp)
-    }
-}
-
-impl WrapperMut {
-    pub fn into_token_stream2(
-        self,
-        input: &DeriveInput,
-        from: &Type,
-        field: &TokenStream2,
-        amplify_crate: &Path,
-    ) -> TokenStream2 {
-        if let Some(index_type) = wrapper_mut_index_type(self) {
-            return index_impl(input, from, field, &index_type, true);
-        }
-        if let Some(operator) = wrapper_mut_operator(self) {
-            return assignment_impl(input, field, operator);
-        }
-
-        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-        let ident_name = &input.ident;
-
-        match self {
-            WrapperMut::DerefMut => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::ops::DerefMut for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn deref_mut(&mut self) -> &mut Self::Target {
-                        &mut self.#field
-                    }
-                }
-            },
-            WrapperMut::AsMut => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::convert::AsMut<<Self as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-                    #[inline]
-                    fn as_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                        &mut self.#field
-                    }
-                }
-            },
-            WrapperMut::AsSliceMut => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::convert::AsMut<[u8]> for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn as_mut(&mut self) -> &mut [u8] {
-                        ::core::convert::AsMut::<[u8]>::as_mut(&mut self.#field)
-                    }
-                }
-            },
-            WrapperMut::BorrowMut => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::borrow::BorrowMut<<Self as #amplify_crate::Wrapper>::Inner> for #ident_name #ty_generics #where_clause {
-                    #[inline]
-                    fn borrow_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
-                        &mut self.#field
-                    }
-                }
-            },
-            WrapperMut::BorrowSliceMut => quote! {
-                #[automatically_derived]
-                impl #impl_generics ::core::borrow::BorrowMut<[u8]> for #ident_name #ty_generics #where_clause
-                {
-                    #[inline]
-                    fn borrow_mut(&mut self) -> &mut [u8] {
-                        ::core::borrow::BorrowMut::<[u8]>::borrow_mut(&mut self.#field)
-                    }
-                }
-            },
-            // Index and assignment traits are generated from the tables below;
-            // `NoRefs` and the group names are resolved before code generation.
-            _ => TokenStream2::new(),
+            _ => &[],
         }
     }
-}
 
-fn formatting_trait(wrapper: Wrapper) -> Option<Ident> {
-    let name = match wrapper {
-        Wrapper::Display => "Display",
-        Wrapper::Debug => "Debug",
-        Wrapper::Octal => "Octal",
-        Wrapper::LowerHex => "LowerHex",
-        Wrapper::UpperHex => "UpperHex",
-        Wrapper::LowerExp => "LowerExp",
-        Wrapper::UpperExp => "UpperExp",
-        _ => return None,
-    };
-    Some(Ident::new(name, Span::call_site()))
-}
-
-fn formatting_impl(trait_name: Ident, input: &DeriveInput, field: &TokenStream2) -> TokenStream2 {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident = &input.ident;
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics ::core::fmt::#trait_name for #ident #ty_generics #where_clause {
-            #[inline]
-            fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                ::core::fmt::#trait_name::fmt(&self.#field, formatter)
-            }
-        }
-    }
-}
-
-fn wrapper_index_type(wrapper: Wrapper) -> Option<TokenStream2> {
-    match wrapper {
-        Wrapper::Index => Some(quote!(usize)),
-        Wrapper::IndexRange => Some(quote!(::core::ops::Range<usize>)),
-        Wrapper::IndexFull => Some(quote!(::core::ops::RangeFull)),
-        Wrapper::IndexFrom => Some(quote!(::core::ops::RangeFrom<usize>)),
-        Wrapper::IndexTo => Some(quote!(::core::ops::RangeTo<usize>)),
-        Wrapper::IndexInclusive => Some(quote!(::core::ops::RangeInclusive<usize>)),
-        Wrapper::IndexToInclusive => Some(quote!(::core::ops::RangeToInclusive<usize>)),
-        _ => None,
-    }
-}
-
-fn wrapper_mut_index_type(wrapper: WrapperMut) -> Option<TokenStream2> {
-    match wrapper {
-        WrapperMut::IndexMut => Some(quote!(usize)),
-        WrapperMut::IndexRangeMut => Some(quote!(::core::ops::Range<usize>)),
-        WrapperMut::IndexFullMut => Some(quote!(::core::ops::RangeFull)),
-        WrapperMut::IndexFromMut => Some(quote!(::core::ops::RangeFrom<usize>)),
-        WrapperMut::IndexToMut => Some(quote!(::core::ops::RangeTo<usize>)),
-        WrapperMut::IndexInclusiveMut => Some(quote!(::core::ops::RangeInclusive<usize>)),
-        WrapperMut::IndexToInclusiveMut => Some(quote!(::core::ops::RangeToInclusive<usize>)),
-        _ => None,
-    }
-}
-
-fn index_impl(
-    input: &DeriveInput,
-    from: &Type,
-    field: &TokenStream2,
-    index_type: &TokenStream2,
-    mutable: bool,
-) -> TokenStream2 {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident = &input.ident;
-    if mutable {
-        quote! {
-            #[automatically_derived]
-            impl #impl_generics ::core::ops::IndexMut<#index_type>
-                for #ident #ty_generics #where_clause
-            {
-                #[inline]
-                fn index_mut(&mut self, index: #index_type) -> &mut Self::Output {
-                    <#from as ::core::ops::IndexMut<#index_type>>::index_mut(
-                        &mut self.#field,
-                        index,
-                    )
-                }
-            }
-        }
-    } else {
-        quote! {
-            #[automatically_derived]
-            impl #impl_generics ::core::ops::Index<#index_type>
-                for #ident #ty_generics #where_clause
-            {
-                type Output = <#from as ::core::ops::Index<#index_type>>::Output;
-
-                #[inline]
-                fn index(&self, index: #index_type) -> &Self::Output {
-                    <#from as ::core::ops::Index<#index_type>>::index(&self.#field, index)
-                }
-            }
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-struct OperatorSpec {
-    trait_name: &'static str,
-    method: &'static str,
-    unary: bool,
-}
-
-fn wrapper_operator(wrapper: Wrapper) -> Option<OperatorSpec> {
-    let (trait_name, method, unary) = match wrapper {
-        Wrapper::Neg => ("Neg", "neg", true),
-        Wrapper::Not => ("Not", "not", true),
-        Wrapper::Add => ("Add", "add", false),
-        Wrapper::Sub => ("Sub", "sub", false),
-        Wrapper::Mul => ("Mul", "mul", false),
-        Wrapper::Div => ("Div", "div", false),
-        Wrapper::Rem => ("Rem", "rem", false),
-        Wrapper::Shl => ("Shl", "shl", false),
-        Wrapper::Shr => ("Shr", "shr", false),
-        Wrapper::BitAnd => ("BitAnd", "bitand", false),
-        Wrapper::BitOr => ("BitOr", "bitor", false),
-        Wrapper::BitXor => ("BitXor", "bitxor", false),
-        _ => return None,
-    };
-    Some(OperatorSpec {
-        trait_name,
-        method,
-        unary,
-    })
-}
-
-fn wrapper_mut_operator(wrapper: WrapperMut) -> Option<OperatorSpec> {
-    let (trait_name, method) = match wrapper {
-        WrapperMut::AddAssign => ("AddAssign", "add_assign"),
-        WrapperMut::SubAssign => ("SubAssign", "sub_assign"),
-        WrapperMut::MulAssign => ("MulAssign", "mul_assign"),
-        WrapperMut::DivAssign => ("DivAssign", "div_assign"),
-        WrapperMut::RemAssign => ("RemAssign", "rem_assign"),
-        WrapperMut::ShlAssign => ("ShlAssign", "shl_assign"),
-        WrapperMut::ShrAssign => ("ShrAssign", "shr_assign"),
-        WrapperMut::BitAndAssign => ("BitAndAssign", "bitand_assign"),
-        WrapperMut::BitOrAssign => ("BitOrAssign", "bitor_assign"),
-        WrapperMut::BitXorAssign => ("BitXorAssign", "bitxor_assign"),
-        _ => return None,
-    };
-    Some(OperatorSpec {
-        trait_name,
-        method,
-        unary: false,
-    })
-}
-
-fn operator_impl(
-    input: &DeriveInput,
-    field: &TokenStream2,
-    operator: OperatorSpec,
-) -> TokenStream2 {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident = &input.ident;
-    let trait_name = Ident::new(operator.trait_name, Span::call_site());
-    let method = Ident::new(operator.method, Span::call_site());
-    let update = match &input.data {
-        Data::Struct(data) if data.fields.len() > 1 => quote!(..self),
-        _ => TokenStream2::new(),
-    };
-    if operator.unary {
-        quote! {
-            #[automatically_derived]
-            impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
-                type Output = Self;
-
-                #[inline]
-                fn #method(self) -> Self {
-                    Self {
-                        #field: ::core::ops::#trait_name::#method(self.#field),
-                        #update
-                    }
-                }
-            }
-        }
-    } else {
-        quote! {
-            #[automatically_derived]
-            impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
-                type Output = Self;
-
-                #[inline]
-                fn #method(self, rhs: Self) -> Self {
-                    Self {
-                        #field: ::core::ops::#trait_name::#method(self.#field, rhs.#field),
-                        #update
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn assignment_impl(
-    input: &DeriveInput,
-    field: &TokenStream2,
-    operator: OperatorSpec,
-) -> TokenStream2 {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident = &input.ident;
-    let trait_name = Ident::new(operator.trait_name, Span::call_site());
-    let method = Ident::new(operator.method, Span::call_site());
-    quote! {
-        #[automatically_derived]
-        impl #impl_generics ::core::ops::#trait_name for #ident #ty_generics #where_clause {
-            #[inline]
-            fn #method(&mut self, rhs: Self) {
-                ::core::ops::#trait_name::#method(&mut self.#field, rhs.#field)
-            }
-        }
-    }
-}
-
-pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident_name = &input.ident;
-    let amplify_crate = amplify_crate(&input)?;
-
-    let (field, from) = get_params(&input)?;
-    let from_conversion = if is_bare_type_parameter(&from, &input.generics) {
-        TokenStream2::new()
-    } else {
-        quote! {
-            #[automatically_derived]
-            impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for #from #where_clause {
-                #[inline]
-                fn from(wrapped: #ident_name #ty_generics) -> Self {
-                    wrapped.#field
-                }
-            }
-        }
-    };
-
-    let wrappers = get_wrappers::<Wrapper>(&input)?;
-    let wrapper_derive = wrappers
-        .iter()
-        .map(|w| w.into_token_stream2(&input, &from, &field, &amplify_crate));
-
-    Ok(quote! {
-        #[automatically_derived]
-        impl #impl_generics #amplify_crate::Wrapper for #ident_name #ty_generics #where_clause {
-            type Inner = #from;
+    fn base(wrapped: &Wrapped<'_>) -> TokenStream2 {
+        let Wrapped {
+            input,
+            field,
+            inner,
+            amplify_crate,
+        } = wrapped;
+        let wrapper = wrapped.implement(&quote!(#amplify_crate::Wrapper), None, quote! {
+            type Inner = #inner;
 
             #[inline]
             fn from_inner(inner: Self::Inner) -> Self {
@@ -677,109 +246,516 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             fn into_inner(self) -> Self::Inner {
                 self.#field
             }
+        });
+        if is_uncovered(inner, &input.generics) {
+            return wrapper;
         }
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+        let ident = &input.ident;
+        quote! {
+            #wrapper
 
-        #from_conversion
+            #[automatically_derived]
+            impl #impl_generics ::core::convert::From<#ident #ty_generics> for #inner #where_clause {
+                #[inline]
+                fn from(wrapped: #ident #ty_generics) -> Self {
+                    wrapped.#field
+                }
+            }
+        }
+    }
 
-        #( #wrapper_derive )*
-    })
+    fn implement(self, wrapped: &Wrapped<'_>) -> TokenStream2 {
+        let Wrapped {
+            field,
+            inner,
+            amplify_crate,
+            ..
+        } = wrapped;
+        match self {
+            Self::FromStr => {
+                let from_str = quote!(::core::str::FromStr);
+                wrapped.implement(&from_str, Some(&from_str), quote! {
+                    type Err = <#inner as #from_str>::Err;
+
+                    #[inline]
+                    fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
+                        <#inner as #from_str>::from_str(s)
+                            .map(<Self as ::core::convert::From<#inner>>::from)
+                    }
+                })
+            }
+            Self::FromHex => {
+                let hex = quote!(#amplify_crate::hex);
+                let from_hex = quote!(#hex::FromHex);
+                wrapped.implement(&from_hex, Some(&from_hex), quote! {
+                    #[inline]
+                    fn from_byte_iter<I>(iter: I) -> ::core::result::Result<Self, #hex::Error>
+                    where
+                        I: ::core::iter::Iterator<Item = ::core::result::Result<u8, #hex::Error>>
+                            + ::core::iter::ExactSizeIterator
+                            + ::core::iter::DoubleEndedIterator,
+                    {
+                        <#inner as #from_hex>::from_byte_iter(iter)
+                            .map(<Self as ::core::convert::From<#inner>>::from)
+                    }
+                })
+            }
+            Self::Display |
+            Self::Debug |
+            Self::Octal |
+            Self::LowerHex |
+            Self::UpperHex |
+            Self::LowerExp |
+            Self::UpperExp => {
+                let name = Ident::new(self.name(), Span::call_site());
+                let fmt = quote!(::core::fmt::#name);
+                wrapped.implement(&fmt, Some(&fmt), quote! {
+                    #[inline]
+                    fn fmt(
+                        &self,
+                        formatter: &mut ::core::fmt::Formatter<'_>,
+                    ) -> ::core::fmt::Result {
+                        #fmt::fmt(&self.#field, formatter)
+                    }
+                })
+            }
+            Self::Deref => wrapped.implement(&quote!(::core::ops::Deref), None, quote! {
+                type Target = #inner;
+
+                #[inline]
+                fn deref(&self) -> &Self::Target {
+                    &self.#field
+                }
+            }),
+            Self::AsRef => wrapped.reference(quote!(::core::convert::AsRef), "as_ref", false),
+            Self::AsSlice => wrapped.reference(quote!(::core::convert::AsRef), "as_ref", true),
+            Self::Borrow => wrapped.reference(quote!(::core::borrow::Borrow), "borrow", false),
+            Self::BorrowSlice => wrapped.reference(quote!(::core::borrow::Borrow), "borrow", true),
+            Self::Index |
+            Self::IndexRange |
+            Self::IndexFull |
+            Self::IndexFrom |
+            Self::IndexTo |
+            Self::IndexInclusive |
+            Self::IndexToInclusive => {
+                let by = index_type(self.name());
+                let index = quote!(::core::ops::Index<#by>);
+                wrapped.implement(&index, Some(&index), quote! {
+                    type Output = <#inner as #index>::Output;
+
+                    #[inline]
+                    fn index(&self, index: #by) -> &Self::Output {
+                        <#inner as #index>::index(&self.#field, index)
+                    }
+                })
+            }
+            Self::Neg | Self::Not => {
+                let (operator, method, rest) = wrapped.operator(self.name());
+                let bound = quote!(#operator<Output = #inner>);
+                wrapped.implement(&operator, Some(&bound), quote! {
+                    type Output = Self;
+
+                    #[inline]
+                    fn #method(self) -> Self {
+                        Self { #field: #operator::#method(self.#field), #rest }
+                    }
+                })
+            }
+            Self::Add |
+            Self::Sub |
+            Self::Mul |
+            Self::Div |
+            Self::Rem |
+            Self::Shl |
+            Self::Shr |
+            Self::BitAnd |
+            Self::BitOr |
+            Self::BitXor => {
+                let (operator, method, rest) = wrapped.operator(self.name());
+                let bound = quote!(#operator<Output = #inner>);
+                wrapped.implement(&operator, Some(&bound), quote! {
+                    type Output = Self;
+
+                    #[inline]
+                    fn #method(self, rhs: Self) -> Self {
+                        Self { #field: #operator::#method(self.#field, rhs.#field), #rest }
+                    }
+                })
+            }
+            // `NoRefs` and the group names never get here: `read` resolves them.
+            Self::NoRefs |
+            Self::Hex |
+            Self::Exp |
+            Self::NumberFmt |
+            Self::RangeOps |
+            Self::MathOps |
+            Self::BoolOps |
+            Self::BitOps => TokenStream2::new(),
+        }
+    }
 }
 
-fn is_bare_type_parameter(ty: &Type, generics: &syn::Generics) -> bool {
-    let Type::Path(ty) = ty else {
-        return false;
-    };
-    let Some(ident) = ty.path.get_ident() else {
-        return false;
-    };
-    generics.type_params().any(|param| param.ident == *ident)
-}
+impl Wrappers for WrapperMut {
+    const ATTR: &'static str = "wrapper_mut";
+    const NO_REFS: Self = Self::NoRefs;
+    const REFS: [Self; 2] = [Self::AsMut, Self::BorrowMut];
 
-pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let ident_name = &input.ident;
-    let amplify_crate = amplify_crate(&input)?;
+    fn group(self) -> &'static [Self] {
+        match self {
+            Self::RangeMut => &[
+                Self::IndexRangeMut,
+                Self::IndexFromMut,
+                Self::IndexToMut,
+                Self::IndexInclusiveMut,
+                Self::IndexToInclusiveMut,
+                Self::IndexFullMut,
+            ],
+            Self::MathAssign => &[
+                Self::AddAssign,
+                Self::SubAssign,
+                Self::MulAssign,
+                Self::DivAssign,
+                Self::RemAssign,
+            ],
+            Self::BoolAssign => &[Self::BitAndAssign, Self::BitOrAssign, Self::BitXorAssign],
+            Self::BitAssign => &[
+                Self::BitAndAssign,
+                Self::BitOrAssign,
+                Self::BitXorAssign,
+                Self::ShlAssign,
+                Self::ShrAssign,
+            ],
+            _ => &[],
+        }
+    }
 
-    let (field, from) = get_params(&input)?;
-
-    let wrappers = get_wrappers::<WrapperMut>(&input)?;
-    let wrapper_derive = wrappers
-        .iter()
-        .map(|w| w.into_token_stream2(&input, &from, &field, &amplify_crate));
-
-    Ok(quote! {
-        #[automatically_derived]
-        impl #impl_generics #amplify_crate::WrapperMut for #ident_name #ty_generics #where_clause {
+    fn base(wrapped: &Wrapped<'_>) -> TokenStream2 {
+        let Wrapped {
+            field,
+            inner,
+            amplify_crate,
+            ..
+        } = wrapped;
+        wrapped.implement(&quote!(#amplify_crate::WrapperMut), None, quote! {
             #[inline]
-            fn as_inner_mut(&mut self) -> &mut <Self as #amplify_crate::Wrapper>::Inner {
+            fn as_inner_mut(&mut self) -> &mut #inner {
                 &mut self.#field
             }
-        }
+        })
+    }
 
-        #( #wrapper_derive )*
+    fn implement(self, wrapped: &Wrapped<'_>) -> TokenStream2 {
+        let Wrapped { field, inner, .. } = wrapped;
+        match self {
+            Self::DerefMut => wrapped.implement(&quote!(::core::ops::DerefMut), None, quote! {
+                #[inline]
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.#field
+                }
+            }),
+            Self::AsMut => wrapped.reference(quote!(::core::convert::AsMut), "as_mut", false),
+            Self::AsSliceMut => wrapped.reference(quote!(::core::convert::AsMut), "as_mut", true),
+            Self::BorrowMut => {
+                wrapped.reference(quote!(::core::borrow::BorrowMut), "borrow_mut", false)
+            }
+            Self::BorrowSliceMut => {
+                wrapped.reference(quote!(::core::borrow::BorrowMut), "borrow_mut", true)
+            }
+            Self::IndexMut |
+            Self::IndexRangeMut |
+            Self::IndexFullMut |
+            Self::IndexFromMut |
+            Self::IndexToMut |
+            Self::IndexInclusiveMut |
+            Self::IndexToInclusiveMut => {
+                let by = index_type(self.name());
+                let index_mut = quote!(::core::ops::IndexMut<#by>);
+                wrapped.implement(&index_mut, Some(&index_mut), quote! {
+                    #[inline]
+                    fn index_mut(&mut self, index: #by) -> &mut Self::Output {
+                        <#inner as #index_mut>::index_mut(&mut self.#field, index)
+                    }
+                })
+            }
+            Self::AddAssign |
+            Self::SubAssign |
+            Self::MulAssign |
+            Self::DivAssign |
+            Self::RemAssign |
+            Self::ShlAssign |
+            Self::ShrAssign |
+            Self::BitAndAssign |
+            Self::BitOrAssign |
+            Self::BitXorAssign => {
+                let (operator, method, _) = wrapped.operator(self.name());
+                wrapped.implement(&operator, Some(&operator), quote! {
+                    #[inline]
+                    fn #method(&mut self, rhs: Self) {
+                        #operator::#method(&mut self.#field, rhs.#field)
+                    }
+                })
+            }
+            // `NoRefs` and the group names never get here: `read` resolves them.
+            Self::NoRefs |
+            Self::RangeMut |
+            Self::MathAssign |
+            Self::BoolAssign |
+            Self::BitAssign => TokenStream2::new(),
+        }
+    }
+}
+
+/// Returns the type which the index trait `name` indexes the wrapper by.
+fn index_type(name: &str) -> TokenStream2 {
+    match name.trim_end_matches("Mut") {
+        "IndexRange" => quote!(::core::ops::Range<usize>),
+        "IndexFull" => quote!(::core::ops::RangeFull),
+        "IndexFrom" => quote!(::core::ops::RangeFrom<usize>),
+        "IndexTo" => quote!(::core::ops::RangeTo<usize>),
+        "IndexInclusive" => quote!(::core::ops::RangeInclusive<usize>),
+        "IndexToInclusive" => quote!(::core::ops::RangeToInclusive<usize>),
+        _ => quote!(usize),
+    }
+}
+
+/// A wrapper: the structure, the field it wraps and the type of that field.
+struct Wrapped<'a> {
+    input: &'a DeriveInput,
+    field: Member,
+    inner: &'a Type,
+    amplify_crate: Path,
+}
+
+impl<'a> Wrapped<'a> {
+    /// Finds the wrapped field: the one marked with `#[wrap]`, or the only
+    /// one.
+    fn read(input: &'a DeriveInput) -> Result<Self> {
+        let amplify_crate = amplify_crate(input)?;
+        let fields = match &input.data {
+            Data::Struct(data) => &data.fields,
+            Data::Enum(_) => {
+                return Err(Error::new_spanned(
+                    input,
+                    "Deriving wrapper is not supported in enums",
+                ));
+            }
+            Data::Union(_) => {
+                return Err(Error::new_spanned(
+                    input,
+                    "Deriving wrapper is not supported in unions",
+                ));
+            }
+        };
+
+        let rules = AttrReq::new("wrap");
+        let marks = collect_all(fields.iter().map(|field| rules.single(&field.attrs)))?;
+        let mut candidates = fields.iter().zip(fields.members());
+        let marked = candidates.clone().zip(marks);
+        let mut marked = marked.filter_map(|(field, mark)| Some((field, mark?)));
+        let wrapped = match (marked.next(), marked.next()) {
+            (_, Some((_, mark))) => {
+                return Err(mark.error("only a single field may be wrapped"));
+            }
+            (Some((field, _)), None) => Some(field),
+            (None, _) if matches!(fields, Fields::Unit) => {
+                return Err(Error::new_spanned(
+                    input,
+                    "Deriving wrapper is meaningless for unit structs",
+                ));
+            }
+            (None, _) if fields.len() > 1 => {
+                return Err(Error::new_spanned(
+                    fields,
+                    "When the structure has multiple fields you must point out the one you will \
+                     wrap by using `#[wrap]` attribute",
+                ));
+            }
+            (None, _) => candidates.next(),
+        };
+        let Some((field, member)) = wrapped else {
+            return Err(Error::new_spanned(input, "a wrapper must have at least one field"));
+        };
+        Ok(Self {
+            input,
+            field: member,
+            inner: &field.ty,
+            amplify_crate,
+        })
+    }
+
+    /// Generates the implementation of a trait for the wrapper out of its
+    /// items. Where the inner type is generic the impl gets `bound` on it,
+    /// which is what the items need.
+    fn implement(
+        &self,
+        trait_path: &TokenStream2,
+        bound: Option<&TokenStream2>,
+        items: TokenStream2,
+    ) -> TokenStream2 {
+        let (impl_generics, ty_generics, _) = self.input.generics.split_for_impl();
+        let ident = &self.input.ident;
+        let mut bounds = Bounds::new(&self.input.generics);
+        if let Some(bound) = bound {
+            bounds.require(self.inner, bound);
+        }
+        let where_clause = bounds.into_where_clause();
+        quote! {
+            #[automatically_derived]
+            impl #impl_generics #trait_path for #ident #ty_generics #where_clause {
+                #items
+            }
+        }
+    }
+
+    /// Generates the implementation of a trait which gives a reference to
+    /// the inner type through `method`. With `bytes` the reference is to
+    /// `[u8]`, which the inner type gives through the same trait.
+    fn reference(&self, trait_path: TokenStream2, method: &str, bytes: bool) -> TokenStream2 {
+        let Self { field, inner, .. } = self;
+        let mutability = method.ends_with("mut").then(|| quote!(mut));
+        let method = Ident::new(method, Span::call_site());
+        if bytes {
+            let of_bytes = quote!(#trait_path<[u8]>);
+            self.implement(&of_bytes, Some(&of_bytes), quote! {
+                #[inline]
+                fn #method(&#mutability self) -> &#mutability [u8] {
+                    #trait_path::<[u8]>::#method(&#mutability self.#field)
+                }
+            })
+        } else {
+            self.implement(&quote!(#trait_path<#inner>), None, quote! {
+                #[inline]
+                fn #method(&#mutability self) -> &#mutability #inner {
+                    &#mutability self.#field
+                }
+            })
+        }
+    }
+
+    /// Returns the path of the operator trait `name` and its method, which
+    /// is named as the trait in lower case, with `_assign` set apart. The
+    /// third item fills the fields which the operator leaves as they are.
+    fn operator(&self, name: &str) -> (TokenStream2, Ident, Option<TokenStream2>) {
+        let operator = Ident::new(name, Span::call_site());
+        let method = match name.strip_suffix("Assign") {
+            Some(name) => format_ident!("{}_assign", name.to_lowercase()),
+            None => format_ident!("{}", name.to_lowercase()),
+        };
+        let rest = matches!(&self.input.data, Data::Struct(data) if data.fields.len() > 1);
+        (quote!(::core::ops::#operator), method, rest.then(|| quote!(..self)))
+    }
+}
+
+/// Tells whether `ty` is a type parameter which nothing covers, also behind
+/// the fundamental `&`, `&mut`, `Box` and `Pin`. A foreign trait can't be
+/// implemented for such a type: the orphan rules forbid it.
+fn is_uncovered(ty: &Type, generics: &Generics) -> bool {
+    match ty {
+        Type::Reference(reference) => is_uncovered(&reference.elem, generics),
+        Type::Path(path) if path.qself.is_none() => {
+            let Some(last) = path.path.segments.last() else {
+                return false;
+            };
+            match &last.arguments {
+                PathArguments::None => generics
+                    .type_params()
+                    .any(|param| path.path.is_ident(&param.ident)),
+                PathArguments::AngleBracketed(args)
+                    if last.ident == "Box" || last.ident == "Pin" =>
+                {
+                    matches!(args.args.first(), Some(GenericArgument::Type(ty)) if is_uncovered(ty, generics))
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> { derive::<Wrapper>(&input) }
+
+pub(crate) fn inner_mut(input: DeriveInput) -> Result<TokenStream2> { derive::<WrapperMut>(&input) }
+
+fn derive<T: Wrappers>(input: &DeriveInput) -> Result<TokenStream2> {
+    let wrapped = Wrapped::read(input)?;
+    let base = T::base(&wrapped);
+    let traits = T::read(input)?
+        .into_iter()
+        .map(|wrapper| wrapper.implement(&wrapped));
+    Ok(quote! {
+        #base
+
+        #( #traits )*
     })
 }
 
-/// Finds the wrapped field: the one marked with `#[wrap]`, or the only one.
-fn get_params(input: &DeriveInput) -> Result<(TokenStream2, Type)> {
-    let fields = match &input.data {
-        Data::Struct(data) => &data.fields,
-        Data::Enum(_) => {
-            return Err(Error::new_spanned(input, "Deriving wrapper is not supported in enums"));
-        }
-        Data::Union(_) => {
-            return Err(Error::new_spanned(input, "Deriving wrapper is not supported in unions"));
-        }
-    };
+#[cfg(test)]
+mod tests {
+    use syn::{DeriveInput, parse_quote};
 
-    let rules = AttrReq::new("wrap");
-    let mut wrapped = None;
-    for (field, member) in fields.iter().zip(fields.members()) {
-        if let Some(attr) = rules.single(&field.attrs)? {
-            if wrapped.is_some() {
-                return Err(attr.error("only a single field may be wrapped"));
-            }
-            wrapped = Some((field, member));
-        }
+    use super::{Wrapper, WrapperMut, Wrappers};
+
+    #[test]
+    fn a_trait_is_derived_once_and_no_refs_takes_only_the_defaults_away() {
+        let read = |input: DeriveInput| Wrapper::read(&input).expect("known names");
+        assert_eq!(
+            read(parse_quote!(
+                struct Item(u8);
+            )),
+            [Wrapper::AsRef, Wrapper::Borrow]
+        );
+        assert_eq!(
+            read(parse_quote! {
+                #[wrapper(Add, Add, BoolOps, Borrow, BitOps)]
+                #[wrapper(Add)]
+                struct Item(u8);
+            }),
+            [
+                Wrapper::AsRef,
+                Wrapper::Borrow,
+                Wrapper::Add,
+                Wrapper::Not,
+                Wrapper::BitAnd,
+                Wrapper::BitOr,
+                Wrapper::BitXor,
+                Wrapper::Shl,
+                Wrapper::Shr,
+            ]
+        );
+        assert_eq!(
+            read(parse_quote!(
+                #[wrapper(Borrow, NoRefs)]
+                struct Item(u8);
+            )),
+            [Wrapper::Borrow]
+        );
+        assert_eq!(
+            read(parse_quote!(
+                #[wrapper(NoRefs, NoRefs)]
+                struct Item(u8);
+            )),
+            []
+        );
+
+        let read = |input: DeriveInput| WrapperMut::read(&input).expect("known names");
+        assert_eq!(
+            read(parse_quote!(
+                #[wrapper_mut(NoRefs, AsMut, AsMut)]
+                struct Item(u8);
+            )),
+            [WrapperMut::AsMut]
+        );
     }
 
-    let wrapped = match (wrapped, fields) {
-        (Some(wrapped), _) => Some(wrapped),
-        (None, Fields::Unit) => {
-            return Err(Error::new_spanned(
-                input,
-                "Deriving wrapper is meaningless for unit structs",
-            ));
-        }
-        (None, _) if fields.len() > 1 => {
-            return Err(Error::new_spanned(
-                fields,
-                "When the structure has multiple fields you must point out the one you will wrap \
-                 by using `#[wrap]` attribute",
-            ));
-        }
-        (None, _) => fields.iter().zip(fields.members()).next(),
-    };
-    let Some((field, member)) = wrapped else {
-        return Err(Error::new_spanned(input, "a wrapper must have at least one field"));
-    };
-    Ok((quote! { #member }, field.ty.clone()))
-}
-
-/// Reads the traits to derive from the attribute of `T`.
-fn get_wrappers<T: Wrappers>(input: &DeriveInput) -> Result<Vec<T>> {
-    let names = T::NAMES.iter().map(|(name, _)| *name);
-    let rules = AttrReq::new(T::ATTR).unnamed(ListReq::any_of(names));
-    let attr = rules.merged(&input.attrs)?;
-
-    let mut wrappers = T::REFS.to_vec();
-    for ident in attr.unnamed().iter().filter_map(Value::as_ident) {
-        if let Some((_, wrapper)) = T::NAMES.iter().find(|(name, _)| ident == name) {
-            wrapper.populate(&mut wrappers);
+    #[test]
+    fn operator_methods_are_named_after_their_traits() {
+        let input: DeriveInput = parse_quote!(
+            struct Item(u8);
+        );
+        let wrapped = super::Wrapped::read(&input).expect("a wrapper");
+        for (name, method) in [("Neg", "neg"), ("BitAnd", "bitand"), ("ShlAssign", "shl_assign")] {
+            assert_eq!(wrapped.operator(name).1, method);
         }
     }
-    if wrappers.contains(&T::NO_REFS) {
-        wrappers.retain(|wrapper| *wrapper != T::NO_REFS && !T::REFS.contains(wrapper));
-    }
-    Ok(wrappers)
 }

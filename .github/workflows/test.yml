@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, develop ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, develop ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,27 +19,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build & test
         run: cargo test --workspace --all-features --no-fail-fast
+      - name: Test the generated code in a no_std crate
+        run: cargo test --manifest-path test/wasm/Cargo.toml
   wasm-testing:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-      - uses: jetli/wasm-pack-action@v0.4.0
-      - name: Add wasm32 target
-        run: rustup target add wasm32-unknown-unknown
-      - name: Test in headless Chrome
-        run: wasm-pack test --headless --chrome
-  wasm-dependency:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: test/wasm
       - uses: jetli/wasm-pack-action@v0.4.0
-      - name: Add wasm32 target
-        run: rustup target add wasm32-unknown-unknown
-      - name: Test building dependency
-        run: cd test/wasm && wasm-pack build
+      - name: Test the generated code in Node.js
+        run: wasm-pack test --node test/wasm
+      - name: Build a wasm package
+        run: wasm-pack build test/wasm

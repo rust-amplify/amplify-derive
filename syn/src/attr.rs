@@ -1,17 +1,20 @@
 // Rust language amplification derive library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
+// SPDX-License-Identifier: Apache-2.0
+//
 // Written in 2019-2021 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
 use std::fmt::Display;
 
@@ -116,6 +119,12 @@ impl ToTokens for Form {
 /// [`AttrReq::each`], so every argument in it is one the rules allow, and
 /// every value is of the kind the rules ask for.
 ///
+/// # Panics
+///
+/// The methods which take the name of an argument panic when the rules do
+/// not declare that argument. Asking for it is a fault of the derive macro,
+/// and it would stay unnoticed if the answer were "not given".
+///
 /// [`AttrReq`]: crate::AttrReq
 /// [`AttrReq::single`]: crate::AttrReq::single
 /// [`AttrReq::merged`]: crate::AttrReq::merged
@@ -123,6 +132,8 @@ impl ToTokens for Form {
 #[derive(Clone, Debug)]
 pub struct ParametrizedAttr {
     pub(crate) span: Span,
+    /// The named arguments which the rules declare.
+    pub(crate) declared: Vec<&'static str>,
     pub(crate) named: Vec<(Ident, Option<Value>)>,
     pub(crate) unnamed: Vec<Value>,
 }
@@ -161,6 +172,7 @@ impl ParametrizedAttr {
     }
 
     pub(crate) fn position(&self, name: &str) -> Option<usize> {
+        assert!(self.declared.contains(&name), "the rules declare no argument `{name}`");
         self.named.iter().position(|(ident, _)| ident == name)
     }
 }

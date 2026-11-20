@@ -1,0 +1,11 @@
+error: `Nothing` has no field `0`
+ --> tests/ui/display_no_field.rs:4:11
+  |
+4 | #[display("{0}")]
+  |           ^^^^^
+
+error: `Point` has no field `2`
+  --> tests/ui/display_no_field.rs:11:11
+   |
+11 | #[display("{x}: {1:>2$}")]
+   |           ^^^^^^^^^^^^^^

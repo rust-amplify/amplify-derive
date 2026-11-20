@@ -11,6 +11,7 @@ rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 readme = "README.md"
+include = ["src/**", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [dependencies]
 syn.workspace = true

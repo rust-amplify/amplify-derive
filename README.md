@@ -124,10 +124,19 @@ assert_eq!(format!("{:#}", Test::NamedCustom { x: 8 }), "this is alternative");
 assert_eq!(format!("{}", Test::UnnamedCustom("Test".to_string())), "CustomTest");
 ```
 
-Format strings follow the rules of `format!`: tuple fields are referenced by
-index (`{0}`), empty placeholders (`{}`) are numbered in order, escaped braces
-(`{{` and `}}`) are printed literally, and fields may be used as width or
-precision parameters (`{value:>width$}`).
+Format strings follow the rules of `format!`: fields are referenced by
+index (`{0}`) and named fields by name as well, empty placeholders (`{}`) are
+numbered in order, escaped braces (`{{` and `}}`) are printed literally, and
+fields may be used as width or precision parameters (`{value:>width$}`).
+
+On an enum, an attribute on the type applies to every variant which has no
+attribute of its own, and a variant without any attribute prints its name.
+`lowercase` and `uppercase` print the name of the type or of the variant with
+its fields, `inner` prints the only field, and a field with
+`#[display(separator = ", ")]` is joined with the separator.
+
+When the type of a field depends on a type parameter, the implementation
+requires the formatting trait which the placeholder of that field uses.
 
 ## Error derive
 
@@ -135,6 +144,9 @@ Error derive macro works to the full extend only when other derive macros
 are used. With `#[derive(Display)]` and `[display(doc_comments)]` it uses
 doc comments for generating error descriptions; with `#[derive(From)]` it
 may automatically implement transofrations from other error types.
+
+The macro implements `core::error::Error` and a conversion of the error into
+`String`. It works in `no_std` crates which have the `alloc` crate.
 
 ```rust
 #[derive(Debug, Display, Error)]
@@ -154,6 +166,9 @@ enum Error {
 Implements [`From`] trait for the whole entity and/or its separate fields.
 Works well with `#[derive(Error)]` and, in many cases may require
 [`Default`] implementation (for details, pls see Examples below)
+
+Deriving `From` where there is nothing to convert from, or two conversions
+from the same type, is an error.
 
 ### Examples
 
@@ -194,35 +209,43 @@ pub enum Error {
     },
 }
 
+// A structure with a single field converts from the type of that field
+// without any attribute
 #[derive(From)]
-pub struct Wrapper(u32, i16);
+pub struct Wrapper(u32);
 ```
 
 ## Wrapper derive
 
 Creates a Rust newtype wrapping an existing type. It can be used in structures
 containing multiple named or unnamed fields; in this case the field you'd
-like to wrap should be marked with `#[wrap]` attribute; otherwise the first
-field is assumed to be the wrapped one.
+like to wrap must be marked with `#[wrap]` attribute.
 
-Using multiple fields requires deriving `From` and `Default` for the wrapper.
+The wrapper needs `From` for the wrapped type, which `#[derive(From)]`
+provides. With multiple fields the wrapped one must be marked with `#[from]`
+as well, and the other fields are filled with their defaults.
 
-Supports automatic implementation of the following traits:
+`#[derive(Wrapper)]` implements:
 * `amplify::Wrapper`
-* `AsRef`
-* `AsMut`
-* `Borrow`
-* `BorrowMut`
-* `Deref`
-* `DerefMut`
+* `AsRef` and `Borrow` for the wrapped type
+* `From<Wrapper>` for the wrapped type
+
+`#[derive(WrapperMut)]` implements:
+* `amplify::WrapperMut`
+* `AsMut` and `BorrowMut` for the wrapped type
 
 Additional standard traits can be selected on stable Rust when they are
 implemented by the wrapped type. `#[wrapper(...)]` supports formatting traits,
-`FromStr`, `FromHex`, reference access, indexing, ranges, and value operators.
-`#[wrapper_mut(...)]` supports mutable references, mutable indexing, ranges,
-and assignment operators. Group options include `Hex`, `Exp`, `NumberFmt`,
-`RangeOps`, `MathOps`, `BoolOps`, `BitOps`, `RangeMut`, `MathAssign`,
-`BoolAssign`, and `BitAssign`; use `NoRefs` to omit the default reference impls.
+`FromStr`, `FromHex`, `Deref`, reference access, indexing, ranges, and value
+operators. `#[wrapper_mut(...)]` supports `DerefMut`, mutable references,
+mutable indexing, ranges, and assignment operators. Group options include
+`Hex`, `Exp`, `NumberFmt`, `RangeOps`, `MathOps`, `BoolOps`, `BitOps`,
+`RangeMut`, `MathAssign`, `BoolAssign`, and `BitAssign`. Use `NoRefs` to omit
+the default reference impls; `#[wrapper(NoRefs, AsRef)]` keeps one of them.
+
+A trait is derived once, however often it is named. When the wrapped type is
+generic, a trait is derived for the wrappers of those types which implement
+it.
 
 Other traits, such as `PartialEq`, `Eq`, `PartialOrd`, `Ord`,
 `Hash` can be implemented using standard `#[derive]` attribute in the
@@ -254,7 +277,9 @@ assert_eq!(w.as_inner(), &HashMap::<usize, Vec<u8>>::default());
 
 Creates getter methods matching field names for all fields within a
 structure (including public and private fields). Getters return reference
-types.
+types, unless `#[getter(...)]` on the structure or on a field asks for
+something else: `as_copy`, `as_clone`, `as_ref`, `as_mut`, `all`, `skip`,
+`prefix = "..."` and `base_name = "..."`.
 
 ### Example
 
@@ -270,6 +295,21 @@ let one = One::default();
 assert_eq!(one.a(), &Vec::<u8>::default());
 assert_eq!(one.b(), &bool::default());
 assert_eq!(one.c(), &u8::default());
+
+#[derive(Getters, Default)]
+#[getter(as_copy)]
+struct Two {
+    flag: bool,
+    #[getter(as_ref, as_mut)]
+    list: Vec<u8>,
+    #[getter(skip)]
+    secret: u8,
+}
+
+let mut two = Two::default();
+assert_eq!(two.flag(), false);
+two.list_mut().push(1);
+assert_eq!(two.list(), &vec![1]);
 ```
 
 ## AsAny derive

@@ -1,0 +1,17 @@
+error: expected a string literal
+ --> tests/ui/display_unused_field.rs:5:36
+  |
+5 | struct Tuple(#[display(separator = 5)] Vec<u8>);
+  |                                    ^
+
+error: unknown `display` argument `seperator`
+  --> tests/ui/display_unused_field.rs:11:19
+   |
+11 |         #[display(seperator = ", ")]
+   |                   ^^^^^^^^^
+
+error: `display` requires the `separator` argument
+  --> tests/ui/display_unused_field.rs:11:11
+   |
+11 |         #[display(seperator = ", ")]
+   |           ^^^^^^^

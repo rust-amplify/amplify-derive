@@ -22,6 +22,11 @@ Change Log
     through `has`, `value`, `str` and `unnamed`.
   - Every violation is a `syn::Error` at the offending argument, all violations
     of an attribute are reported together, and no input panics.
+  - `collect_all` gathers the errors of several attributes, such as those of
+    all the fields of a structure, into one.
+  - A name which the rules do not declare is a fault of the derive macro and
+    panics: in `AttrReq::conflict` and in the `ParametrizedAttr` methods which
+    take the name of an argument.
 - Removed `ExtractAttr`, `SingularAttr`, `ArgValue`, `ValueReq`, `LiteralClass`,
   `TypeClass`, the `MetaArg` parsers, `DataType` with the derive scaffolding
   around it, the custom `Error` type, and the `ident!` and `path!` macros.

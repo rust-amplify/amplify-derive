@@ -1,0 +1,23 @@
+error: expected a type
+ --> tests/ui/from_fields.rs:5:12
+  |
+5 |     #[from("u8")]
+  |            ^^^^
+
+error: unexpected argument: `from` takes a single unnamed argument
+ --> tests/ui/from_fields.rs:7:23
+  |
+7 |     Second(#[from(u8, u16)] u32, #[from = 1] u64),
+  |                       ^^^
+
+error: expected `#[from(...)]`, found `#[from = ...]`
+ --> tests/ui/from_fields.rs:7:36
+  |
+7 |     Second(#[from(u8, u16)] u32, #[from = 1] u64),
+  |                                    ^^^^
+
+error: empty attribute is allowed only for entities with a single field; for multi-field entities specify the attribute right ahead of the target field
+ --> tests/ui/from_fields.rs:8:7
+  |
+8 |     #[from]
+  |       ^^^^

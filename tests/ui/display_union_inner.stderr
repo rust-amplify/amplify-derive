@@ -1,0 +1,5 @@
+error: display(inner) can't be used with a union: reading its field is unsafe
+ --> tests/ui/display_union_inner.rs:5:7
+  |
+5 | union Value {
+  |       ^^^^^

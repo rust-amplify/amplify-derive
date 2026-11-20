@@ -1,4 +1,5 @@
-error: Deriving `Display` for a union requires a type-level `display` attribute
+error: Deriving `Display`: required attribute `display` is missing.
+       #[display("format {} string" | Trait | Type::function)]
  --> tests/ui/display_union_missing.rs:4:1
   |
 4 | union Value {

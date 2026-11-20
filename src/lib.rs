@@ -1,18 +1,21 @@
 // Rust language amplification derive library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
+// SPDX-License-Identifier: Apache-2.0
+//
 // Written in 2019-2020 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //     Elichai Turkel <elichai.turkel@gmail.com>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
 //! Amplifying Rust language capabilities: multiple generic trait
 //! implementations, type wrappers, derive macros.
@@ -25,6 +28,9 @@ mod from;
 mod getters;
 mod util;
 mod wrapper;
+
+#[cfg(test)]
+mod expand;
 
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
@@ -158,9 +164,14 @@ use syn::{DeriveInput, parse_macro_input};
 ///     #[display(doc_comments)]
 ///     pub struct NewType(pub String);
 ///    ```
-/// 7. Print the name of enum variant in lowercase/uppercase:
+/// 7. Print the name of enum variant, or of a structure, in
+///    lowercase/uppercase:
 ///    ```
 ///     # #[macro_use] extern crate amplify_derive;
+///     #[derive(Display)]
+///     #[display(lowercase)]
+///     struct Point { x: i32, y: i32 }
+///
 ///     #[derive(Display)]
 ///     #[display(lowercase)]
 ///     enum Message {
@@ -178,6 +189,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///     }
 ///
 ///
+///     assert_eq!(format!("{}", Point { x: 1, y: 2 }), "point { x: 1, y: 2 }");
 ///     assert_eq!(format!("{}", Message::Quit), "quit");
 ///     assert_eq!(format!("{}", Message::Move{ x: 1, y: 2 }),
 ///         "move { x: 1, y: 2 }");
@@ -189,6 +201,45 @@ use syn::{DeriveInput, parse_macro_input};
 ///     assert_eq!(format!("{}", Event::Load(Message::ChangeColor(0, 255, 0))),
 ///         "LOAD(changecolor(0, 255, 0))");
 ///    ```
+/// 8. An attribute on an enum applies to each variant which has no attribute
+///    of its own. A variant without any attribute is displayed as its name:
+///    ```
+///     # #[macro_use] extern crate amplify_derive;
+///     #[derive(Display)]
+///     #[display("<{0}>")]
+///     enum Tagged {
+///         Number(u8),
+///         Text(&'static str),
+///         #[display("nothing")]
+///         Nothing,
+///     }
+///
+///     assert_eq!(format!("{}", Tagged::Number(1)), "<1>");
+///     assert_eq!(format!("{}", Tagged::Text("a")), "<a>");
+///     assert_eq!(format!("{}", Tagged::Nothing), "nothing");
+///    ```
+///
+/// # Format strings
+///
+/// Format strings follow the rules of [`format!`]. A field is referenced by
+/// its position, as `{0}`, or as `{}` for the next field, and a named field
+/// by its name as well; `{type}` stands for the field `r#type`. A field may
+/// also give the width or the precision of another one, as in
+/// `{value:>width$}`. A name which is not a field is looked up where the type
+/// is defined, which lets a format string print a constant.
+///
+/// A field with `#[display(separator = "...")]` is a collection of strings,
+/// which are joined with the separator.
+///
+/// When the type of a field depends on a type parameter, the implementation
+/// requires the formatting trait which the placeholder of the field uses:
+/// `#[display("{0:?}")] struct Wrapper<T>(T);` is displayed for every
+/// `T: Debug`. `#[display(Debug)]` requires `Debug` of the type in the same
+/// way.
+///
+/// The fields of a union can't be read, so a union is displayed through a
+/// function, a formatting trait, or a format string without fields.
+///
 /// # Example
 ///
 /// Advanced use with enums:
@@ -201,7 +252,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///     #[display("OtherName")]
 ///     Other,
 ///
-///     /// Document comment working as display string
+///     /// Doc comments are displayed only with `#[display(doc_comments)]`
 ///     Commented,
 ///
 ///     Named {
@@ -227,6 +278,7 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// assert_eq!(format!("{}", Test::Some), "Some");
 /// assert_eq!(format!("{}", Test::Other), "OtherName");
+/// assert_eq!(format!("{}", Test::Commented), "Commented");
 /// assert_eq!(format!("{}", Test::Named { x: 1 }), "Named { .. }");
 /// assert_eq!(format!("{}", Test::Unnamed(5)), "Unnamed(..)");
 /// assert_eq!(format!("{}", Test::NamedCustom { x: 8 }), "Custom8");
@@ -288,6 +340,10 @@ pub fn derive_display(input: TokenStream) -> TokenStream {
 /// doc comments for generating error descriptions; with `#[derive(From)]` it
 /// may automatically implement transofrations from other error types.
 ///
+/// The macro implements [`core::error::Error`] and a conversion of the error
+/// into a [`String`]. It works in `no_std` crates; the conversion needs the
+/// `alloc` crate to be available.
+///
 /// # Example
 ///
 /// ```
@@ -318,6 +374,27 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
 /// Implements [`From`] trait for the whole entity and/or its separate fields.
 /// Works well with `#[derive(Error)]` and, in many cases may require
 /// [`Default`] implementation (for details, pls see Examples below)
+///
+/// A conversion is asked for with the `#[from]` attribute:
+/// - `#[from]` on a field converts from the type of the field, and
+///   `#[from(Type)]` from the given type, which must implement `Into` for the
+///   type of the field;
+/// - `#[from(Type)]` on a structure, a union or a variant converts from the
+///   given type. The value goes into the only field, or into the first field
+///   of a tuple; a unit, or an entity with several named fields, ignores it.
+///   With a single field the type may be left out, as in `#[from]`;
+/// - a structure or a union with a single field converts from the type of that
+///   field without any attribute.
+///
+/// The fields which do not take the value are filled with their defaults. A
+/// structure with named fields takes them from its own [`Default`]
+/// implementation, and everything else from the `Default` of each field.
+///
+/// # Errors
+///
+/// The macro errors when there is nothing to convert from, when two
+/// conversions are from the same type, and when `#[from]` is put on an enum
+/// instead of its variants.
 ///
 /// # Examples
 ///
@@ -360,8 +437,10 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
 ///     },
 /// }
 ///
+/// // A structure with a single field converts from the type of that field
+/// // without any attribute
 /// #[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Debug, From)]
-/// pub struct Wrapper(u32, i16);
+/// pub struct Wrapper(u32);
 /// ```
 ///
 /// The never type can also be used as an input type:
@@ -471,6 +550,12 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 /// Each of these arguments, except `all`, may be given a string value which
 /// replaces the suffix of the method name, like in `as_mut = "_mutable"`.
 ///
+/// `as_copy`, `as_clone` and `as_ref` make one set. A field which names any of
+/// them gets exactly the ones it names. A field which names none of them gets
+/// the ones named at the type level, and `as_ref` when the type names none
+/// either. `as_mut` stands apart from that set: a field gets the method
+/// whenever the field or the type asks for it.
+///
 /// **Can be used**: at type and field level
 ///
 /// **Defaults to**: `as_ref`
@@ -551,6 +636,9 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 /// let mut other = Other::default();
 /// assert_eq!(other.vec(), &Vec::<u8>::default());
 /// assert_eq!(other.defaults(), String::from(""));
+/// // Fields without arguments of their own use the struct-level `as_copy`
+/// let flag: bool = other.flag();
+/// let field: u8 = other.field();
 /// ```
 ///
 /// Advanced use: please pay attention that `as_mut` on a struct level is not
@@ -589,10 +677,12 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 /// // method does not exist: assert_eq!(one.get_field(), u8::default());
 /// ```
 ///
-/// this will end up in the following generated code:
+/// this will end up in the following generated code. The method names are
+/// raw identifiers, which lets a getter have a reserved word for its name:
 /// ```
 /// # struct One {
 /// #    vec: Vec<u8>,
+/// #    defaults: String,
 /// #    pub flag: bool,
 /// #    pub(self) field: u8,
 /// # }
@@ -601,25 +691,33 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 ///     #[doc = "Method cloning [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes(&self) -> Vec<u8> { self.vec.clone() }
+///     pub fn r#get_bytes(&self) -> Vec<u8> { ::core::clone::Clone::clone(&self.vec) }
 ///
 ///     #[doc = "Method borrowing [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes_ref(&self) -> &Vec<u8> { &self.vec }
+///     pub fn r#get_bytes_ref(&self) -> &Vec<u8> { &self.vec }
 ///
 ///     #[doc = "Method returning mutable borrow of [`One::vec`] field.\n"]
 ///     #[doc = " Contains byte representation of the data"]
 ///     #[inline]
-///     pub fn get_bytes_mut(&mut self) -> &mut Vec<u8> { &mut self.vec }
+///     pub fn r#get_bytes_mut(&mut self) -> &mut Vec<u8> { &mut self.vec }
+///
+///     #[doc = "Method borrowing [`One::defaults`] field.\n"]
+///     #[inline]
+///     pub fn r#get_defaults(&self) -> &String { &self.defaults }
+///
+///     #[doc = "Method returning mutable borrow of [`One::defaults`] field.\n"]
+///     #[inline]
+///     pub fn r#get_defaults_mut(&mut self) -> &mut String { &mut self.defaults }
 ///
 ///     #[doc = "Method returning copy of [`One::flag`] field.\n"]
 ///     #[inline]
-///     pub fn get_flag(&self) -> bool { self.flag }
+///     pub fn r#get_flag(&self) -> bool { self.flag }
 ///
 ///     #[doc = "Method returning mutable borrow of [`One::flag`] field.\n"]
 ///     #[inline]
-///     pub fn get_flag_mut(&mut self) -> &mut bool { &mut self.flag }
+///     pub fn r#get_flag_mut(&mut self) -> &mut bool { &mut self.flag }
 /// }
 /// ```
 #[proc_macro_derive(Getters, attributes(getter))]
@@ -632,24 +730,28 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 
 /// Creates rust new type wrapping existing type. Can be used in structures
 /// containing multiple named or unnamed fields; in this case the field you'd
-/// like to wrap should be marked with `#[wrap]` attribute; otherwise the first
-/// field is assumed to be the wrapped one.
+/// like to wrap must be marked with `#[wrap]` attribute.
 ///
 /// NB: You have to use `derive(From)` in order foe Wrapper to work properly.
-/// Also, in case of multiple fields, each non-wrapped field type must implement
-/// `Default` trait.
+/// Also, in case of multiple fields, the wrapped one must be marked with
+/// `#[from]` as well, and the other fields are filled with their defaults in
+/// the way `derive(From)` describes.
 /// A conversion from the wrapper into its inner type is omitted when the inner
-/// type is a bare type parameter, as that implementation would violate Rust's
-/// orphan rules.
+/// type is a type parameter, also behind `&`, `&mut`, `Box` or `Pin`, as that
+/// implementation would violate Rust's orphan rules.
 ///
 /// Supports automatic implementation of the following traits:
 /// * `amplify::Wrapper`
 /// * [`AsRef`]
 /// * [`core::borrow::Borrow`]
-///   You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`.
+///   You may skip `AsRef` and `Borrow` implementations with `#[wrapper(NoRefs)]`,
+///   and keep one of the two by naming it, as in `#[wrapper(NoRefs, AsRef)]`.
 ///
 /// You can implement additional derives, it they are implemented for the
-/// wrapped type, using `#[wrapper()]` proc macro:
+/// wrapped type, using `#[wrapper()]` proc macro. A trait is derived once,
+/// however often it is named, by itself or through a shortcut. When the
+/// wrapped type is generic, a trait is derived for the wrappers of those types
+/// which implement the trait. The traits are:
 /// 1. Reference access to the inner type:
 ///    * `Deref` for implementing [`core::ops::Deref`]
 ///    * `AsSlice` for implementing [`AsRef`]`<[u8]>`
@@ -776,7 +878,8 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 /// * [`AsMut`]
 /// * [`core::borrow::BorrowMut`]
 ///   You may skip `AsMut` and `BorrowMut` implementations with
-///   `#[wrapper_mut(NoRefs)]`.
+///   `#[wrapper_mut(NoRefs)]`, and keep one of the two by naming it, as in
+///   `#[wrapper_mut(NoRefs, AsMut)]`.
 ///
 /// You can implement additional derives, if they are implemented for the
 /// wrapped type, using `#[wrapper_mut()]` proc macro:

@@ -9,38 +9,89 @@ Change Log
   (`AttrReq`) and reads them through those rules. Unknown, repeated and
   conflicting arguments, values of a wrong kind and misplaced values are
   reported at the argument, all at once, and never panic the macro.
-- `Display`: correctly bind fields used by alternate formats; select tuple
-  fields by their actual index; avoid formatter-name collisions; preserve
-  escaped braces; handle implicit `{}` placeholders, dynamic width/precision,
-  and trailing whitespace; reject duplicate and malformed attributes; require
-  a type-level attribute for unions.
-- `From`: fix named multi-field variants, empty braced and tuple variants,
-  union construction, and duplicate-type diagnostics. The never type is now
-  covered by a stable doctest.
-- `Wrapper` and `WrapperMut`: make `NoRefs` work; qualify generated paths;
-  handle bounded/defaulted generics, inclusive range outputs, mutable slice
-  indexing, and multi-field operators; reject empty wrappers without panicking;
-  report malformed `amplify_crate` attributes; and omit orphan-rule-invalid
-  `From<Wrapper<T>> for T` implementations.
-- `Getters`: report unknown options and wrong value types at their arguments,
-  support raw-identifier fields, and copy all field documentation attributes.
-  Getter names are emitted as raw identifiers, so a name which is a reserved
-  word in any edition (`type`, `try`, `gen`) compiles; a name which cannot be
-  a method name (`self`, `get-value`) is an error instead of a macro panic.
-- `Error` implements `core::error::Error`; `AsAny` honors
-  `#[amplify_crate(path)]`.
+- `Display`:
+  - Fields used by alternate formats are bound; tuple fields are selected by
+    their actual index; a field named `f` does not collide with the formatter;
+    escaped braces are preserved; implicit `{}` placeholders, dynamic width
+    and precision and trailing whitespace are handled.
+  - One code path serves named, tuple and unit fields of structures, variants
+    and unions. `alt` works on unit variants, `separator` on tuple fields, and
+    `lowercase`/`uppercase` on structures and unions.
+  - An attribute on an enum is applied variant by variant, so a type-level
+    format string may name fields. An enum without any attribute prints the
+    names of its variants instead of panicking the macro.
+  - Only a single name such as `Debug` is a formatting trait;
+    `#[display(Binary::show)]` calls the function.
+  - A named field can be referenced by its position, and `r#type` as
+    `{type}`. A placeholder for a field which does not exist is reported at
+    the format string.
+  - The implementation is bounded by the formatting trait of each generic
+    field a format string uses, and by the trait of `#[display(Trait)]`.
+  - The attributes of every field are checked, also of the fields no format
+    string uses.
+- `From`:
+  - Named multi-field variants, empty braced and tuple variants and structures,
+    and unions are constructed correctly; every kind of value is built with
+    brace syntax.
+  - A structure with a single named field no longer needs `Default`.
+  - Deriving `From` with nothing to convert from is an error; so is the same
+    type used twice, which is reported at the second attribute.
+  - The never type is covered by a stable doctest.
+- `Wrapper` and `WrapperMut`:
+  - `NoRefs` works, and takes away only the default implementations: naming
+    `AsRef`, `Borrow`, `AsMut` or `BorrowMut` next to it keeps that one.
+  - A trait is derived once, however often it is named, by itself or through a
+    group such as `BoolOps` and `BitOps`.
+  - When the wrapped type is generic, each derived trait is bounded by the
+    same trait of the wrapped type.
+  - `From<Wrapper> for Inner` is omitted when the inner type is a type
+    parameter, also behind `&`, `&mut`, `Box` or `Pin`, where it would break
+    the orphan rules.
+  - Generated paths are qualified; bounded and defaulted generics, inclusive
+    range outputs, mutable slice indexing and multi-field operators are
+    handled; empty wrappers and malformed `amplify_crate` attributes are
+    errors instead of panics.
+- `Getters`:
+  - Unknown options and wrong value types are reported at their arguments.
+  - Raw-identifier fields are supported and all field documentation is copied.
+  - Getter names are emitted as raw identifiers, so a name which is a reserved
+    word in any edition (`type`, `try`, `gen`) compiles; a name which cannot be
+    a method name (`self`, `get-value`) is an error instead of a macro panic.
+  - The type-level `as_copy`, `as_clone` and `as_ref` reach the fields which
+    name none of the three, as documented.
+  - A bare `as_ref` next to `as_copy` or `as_clone` derives the `_ref` method,
+    as documented, instead of being dropped.
+- `Error` implements `core::error::Error` and reaches `String` through the
+  `alloc` crate, so it can be derived in `no_std` crates.
+- `AsAny` honors `#[amplify_crate(path)]`.
+- All derives report the faulty attributes of every field and variant in one
+  pass, not only the first one.
 - Code generated by `Display`, `From`, `Error`, `Getters`, `Wrapper` and
   `WrapperMut` uses fully qualified paths and compiles inside
   `#![no_implicit_prelude]` modules and next to user-defined `Result` aliases.
   The default crate path of `Wrapper` and `WrapperMut` is still the relative
   `amplify`, so such modules need `#[amplify_crate(::amplify)]`.
-- Behavior changes: duplicate `#[display]` and malformed `#[amplify_crate]`
-  attributes are errors; `{{0}}` remains literal `{0}`; tuple variant
-  `#[display("{1}")]` prints field 1; and `{}` placeholders are numbered in
-  order. A bare `#[wrapper]` or `#[wrapper_mut]` reads as an empty list, and
-  their arguments must be single identifiers.
-- Add runtime integration coverage and `trybuild` compile-fail tests for local
-  macros, and modernize the CI toolchain and actions.
+- Behavior changes:
+  - Duplicate `#[display]` and malformed `#[amplify_crate]` attributes are
+    errors.
+  - `{{0}}` remains literal `{0}`; tuple variant `#[display("{1}")]` prints
+    field 1; `{}` placeholders are numbered in order.
+  - A bare `#[wrapper]` or `#[wrapper_mut]` reads as an empty list, and their
+    arguments must be single identifiers.
+  - `#[derive(From)]` without a conversion is an error instead of deriving
+    nothing.
+  - `Getters`: with `#[getter(as_copy)]` or `#[getter(as_clone)]` on the
+    structure, a field without `as_copy`, `as_clone` or `as_ref` of its own
+    now returns a copy or a clone instead of a reference.
+  - `#[display(inner)]` on a union is an error, and on a unit structure it
+    prints the name of the structure.
+- Tests: runtime integration tests, `trybuild` compile-fail tests, snapshots
+  of the generated code (`tests/expand`), and a `no_std` crate which uses
+  every derive and is tested on `wasm32` (`test/wasm`).
+- The published packages contain only sources, tests, the readme, the
+  changelog and the licence; source files carry `Apache-2.0` headers, in line
+  with the manifests.
+- CI is modernized and runs for the `develop` branch too.
 
 2.10.0
 ------

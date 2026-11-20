@@ -21,6 +21,13 @@ Move the `amplify-derive` workspace (`amplify_derive` 4.0.1 and `amplify_syn` 2.
 - **Versions:** `amplify_syn` 3.0.0 and `amplify_derive` 5.0.0. A major bump for `amplify_derive` keeps the MSRV jump and the stricter attribute checks away from crates that depend on `^4`.
 - **Lints:** warnings in the manifest, denied only in CI. Commit `398d3fc` removed in-source `deny` attributes because they kept breaking builds.
 
+**Mine, for steps 8 to 13 ("fix everything", 2026-11-19)**
+- **`Getters`:** the code follows the documentation. A field which names no copying, cloning or borrowing getter takes them from the type-level `#[getter]`, and a bare `as_ref` next to `as_copy` or `as_clone` is named `_ref`.
+- **`From`:** an item with nothing to convert from is an error.
+- **Licence headers:** the files state `Apache-2.0`, which is what both manifests, `MANIFEST.yml` and `LICENSE` say.
+- **Scope:** the items which were out of scope above and are now in: licence headers and the `test/wasm` crate. The `amplify` repository stays out of scope.
+- **Dev-dependency:** `prettyplease` is added next to `trybuild`. It prints the snapshots of the generated code (step 12).
+
 ### Does `amplify_syn` add value?
 
 **As it stands, not to `amplify_derive`.**
@@ -274,6 +281,33 @@ impl ParametrizedAttr { span(), has(name), value(name), str(name), unnamed(), er
 
 **Getter names** are emitted as raw identifiers (`r#name`), so no keyword list is kept. A name the lexer rejects, such as `self` or `get-value`, is a spanned error.
 
+### Revision for steps 8 to 13: the second round
+
+These steps supersede what this tab says about the internals of the derives. The faults they fix are in the Defect List tab under "Second round".
+
+**`Display` (`src/display.rs`)**
+- `Technique` is what an attribute asks for: a formatting trait, a function, a format string with an optional alternative, doc comments, `inner`, `lowercase` or `uppercase`.
+- `Item` is what one `write!` displays: a structure, a variant or a union. `Item::display` turns a technique into the fields to bind and the code. Fields are bound through `syn::Member`, so named, tuple and unit fields take the same path: `let Self { x: a, 0: b, .. } = self;` for a structure and `Self::V { .. } => ...` arms for an enum.
+- The format scanner also names the formatting trait of each placeholder (`Format::traits`), from which the impl gets its bounds on generic fields.
+
+**`From` (`src/from.rs`)**
+- `conversions` reads the `#[from]` attributes of one structure, variant or union into `Conversion` values, and `construct` builds the value with brace syntax for every field kind.
+
+**`Wrapper` and `WrapperMut` (`src/wrapper.rs`)**
+- `Wrapped` holds the wrapped field and its type. `Wrapped::implement` emits `impl Trait for Wrapper` out of the trait, the bound it needs on the inner type and the items, and every derived trait goes through it.
+- The method of an operator trait is derived from the name of the trait (`BitAnd` to `bitand`, `ShlAssign` to `shl_assign`).
+
+**Shared (`src/util.rs`)**
+- `Bounds` adds `Type: Trait` to the where clause of an impl when the type names a type parameter. A bound on any other type would be a trivial one, which rustc warns about.
+
+**`amplify_syn`**
+- `collect_all(results)` returns all values or all errors combined; every derive uses it over fields and variants.
+- `ParametrizedAttr` remembers the names its rules declare and panics when asked for another one; `AttrReq::conflict` panics on an undeclared name too.
+
+**Tests**
+- `src/expand.rs` (test-only) runs the derive functions over `tests/expand/*.rs` and compares the result with `tests/expand/*.expanded.rs`. Both sides go through `prettyplease`, so the layout of a snapshot does not matter. `EXPAND=overwrite cargo test` accepts a change.
+- `test/wasm` is a `no_std` crate which uses every derive. Its three tests run natively with `cargo test --manifest-path test/wasm/Cargo.toml` and on `wasm32-unknown-unknown` with `wasm-pack test --node test/wasm`.
+
 ### File Structure
 
 ```
@@ -436,6 +470,31 @@ The 3.0 prototype parses all four S4 forms.
 - **773 and 807-814:** the `WrapperMut` docs say `#[wrapper(...)]` where the attribute is `#[wrapper_mut(...)]`.
 - **369-386:** `#[from(!)]` is described as nightly-only and its doctest is ignored; it compiles on stable 1.100.0.
 
+### Second round (steps 8 to 13)
+
+Found by reading the code after step 7. "Since" tells whether 4.0.1 had the fault.
+
+| ID | What happens | Since | Fix | Step |
+|---|---|---|---|---|
+| D9 | `alt` is ignored on unit variants | step 4 | One code path for every field kind | 8 |
+| D10 | An enum with no `#[display]` on the type or on any variant panics the macro | 4.0.1 | Variants print their names | 8 |
+| D11 | A type-level format string which names fields, such as `#[display("{0}")]` on an enum, does not compile | 4.0.1 | The type-level attribute is applied variant by variant | 8 |
+| D12 | `#[display(Binary::show)]` is read as the `Binary` trait | 4.0.1 | Only a single name is a formatting trait | 8 |
+| D13 | `separator` on a tuple field is ignored, and a field attribute is checked only when the field is used | 4.0.1 | Fields are read through `syn::Member`; every field attribute is checked | 8 |
+| D14 | `lowercase` and `uppercase` on a struct or union print an empty string | 4.0.1 | The type name is printed like a variant name | 8 |
+| D15 | A generic field needs its bound written on the type | 4.0.1 | The impl gets a bound for each generic field the format string uses | 8 |
+| F5 | `#[derive(From)]` with nothing to convert from derives nothing, silently | 4.0.1 | Error | 9 |
+| F6 | `#[from(T)]` on an empty tuple struct `S()` emits `Self(v.into())` | 4.0.1 | Values are built with brace syntax for every field kind | 9 |
+| F7 | A named struct with a single field needs `Default` for no reason | 4.0.1 | No `..Default::default()` when no field is left | 9 |
+| E2 | `Error` emits `::std::string::String` and cannot be used in a `no_std` crate | 4.0.1 | `extern crate alloc` inside the generated block | 9 |
+| W11 | `AsRef`, `Borrow`, `AsMut` and `BorrowMut` cannot be named: alone they repeat the default impl, and `NoRefs` removes them | 4.0.1 | `NoRefs` removes the defaults only | 10 |
+| W12 | Overlapping names such as `#[wrapper(BoolOps, BitOps)]` derive a trait twice | 4.0.1 | A trait is derived once | 10 |
+| W13 | `From<Wrapper> for Inner` breaks the orphan rules for `&T`, `&mut T`, `Box<T>` and `Pin<T>` | 4.0.1 | Skipped like for a bare `T` | 10 |
+| W14 | A generic wrapper needs the bounds of the derived traits written on the type | 4.0.1 | Each impl gets the bound on the inner type | 10 |
+| G5 | A type-level `as_copy`, `as_clone` or `as_ref` does not reach fields without a `#[getter]` of their own; a bare `as_ref` next to `as_copy` is dropped | 4.0.1 | As documented | 11 |
+| S6 | `ParametrizedAttr` and `AttrReq::conflict` accept names the rules do not declare | step 7 | Panic, as it is a fault of the derive | 11 |
+| S7 | A derive stops at the first field or variant with a bad attribute | 4.0.1 | Errors of all fields and variants are reported together | 11 |
+
 # Testing
 
 ### Validation Approach
@@ -459,9 +518,16 @@ cargo tree -e normal -p amplify_derive      # must show syn 3 and no syn 1
 
 `.rustfmt.toml` uses unstable options, so formatting needs the nightly `rustfmt`, as the existing lint workflow does.
 
+**Added in steps 12 and 13**
+```
+EXPAND=overwrite cargo test --lib expand             # accept a change in generated code
+cargo test --manifest-path test/wasm/Cargo.toml      # the no_std fixture, natively
+wasm-pack test --node test/wasm                      # the same tests on wasm32
+```
+
 **Cannot be validated by the agent**
 - GitHub Actions runs. Workflow edits are checked by reading the YAML only.
-- The two wasm jobs, which need `wasm-pack` and headless Chrome.
+- `wasm-pack` itself. The wasm tests were run through `wasm-bindgen-test-runner` and Node.js, which is what `wasm-pack test --node` drives.
 
 ### Key Scenarios
 
@@ -605,3 +671,53 @@ CI, README, changelogs and manifest metadata describe and test the modernized wo
 - Shorten the derives where the rule layer makes code redundant, without changing generated code.
 - Add unit tests for the rule layer, update the compile-fail snapshots, and bring `syn/README.md`, both changelogs and the rustdoc in line.
 - Run the full validation set from the Testing tab.
+
+### ✓ Step 8: Rebuild Display on one code path
+`Display` treats named, tuple and unit fields of structs, variants and unions in one place, and the faults D9 to D15 are gone.
+
+- Add a failing test for each of D9 to D14 to `tests/display.rs` and `tests/ui/` first.
+- Describe a struct, a variant or a union as one arm of `match self`, with fields bound through `syn::Member`, and delete the separate struct, enum and union paths.
+- Read the field-level `#[display(separator = "...")]` of every field, used or not.
+- Add a bound to the impl for each generic field a format string uses, by the formatting trait the placeholder asks for (D15).
+- Keep the output of every existing test and doctest.
+
+### ✓ Step 9: Fix From and Error
+`From` reports an item with nothing to convert from, builds every kind of value the same way, and `Error` works without `std`.
+
+- Replace `InstructionEntity` with one constructor which uses brace syntax for named, tuple and unit values (F6, F7).
+- Compare the types of two conversions structurally instead of by their text.
+- Make an item with no conversion an error (F5) and correct the example in `src/lib.rs` and `README.md`.
+- Emit `From<E> for String` through `extern crate alloc` (E2).
+- Add regression tests to `tests/from.rs`, `tests/error_as_any.rs` and `tests/ui/`.
+
+### ✓ Step 10: Fix Wrapper and WrapperMut names, orphan rule and bounds
+`Wrapper` and `WrapperMut` derive each trait once, accept the names of the default traits, and work for generic inner types.
+
+- Derive a trait once however often it is named, and let `NoRefs` remove only the default impls (W11, W12).
+- Skip `From<Wrapper> for Inner` when the inner type is a type parameter behind `&`, `&mut`, `Box` or `Pin` (W13).
+- Describe each derived trait as the trait, the bound it needs on the inner type and the items of the impl, and emit all of them through one function; add the bound when the inner type is generic (W14).
+- Add regression tests to `tests/wrapper.rs`.
+
+### ✓ Step 11: Make Getters follow its documentation and tighten amplify_syn
+`Getters` behaves as documented, a misspelled argument name in a derive is caught, and a derive reports the errors of all fields and variants together.
+
+- Let a field which names no copying, cloning or borrowing getter take them from the type-level `#[getter]`, and name a bare `as_ref` next to `as_copy` or `as_clone` with the `_ref` suffix (G5).
+- Make `ParametrizedAttr` and `AttrReq::conflict` panic on a name the rules do not declare (S6).
+- Add `amplify_syn::collect_all` and use it over fields and variants in every derive (S7).
+- Update `tests/getters.rs`, the rule-layer unit tests, the compile-fail snapshots and the `Getters` rustdoc.
+
+### ✓ Step 12: Add snapshots of the generated code
+The code each derive generates is pinned by tests which run on stable.
+
+- Add `tests/expand/*.rs` inputs with their `*.expanded.rs` snapshots, covering every derive.
+- Add a unit test which runs the derive functions over each input and compares token streams, with `EXPAND=overwrite` to accept a change.
+
+### ✓ Step 13: Fix packaging, licence headers, CI and documentation
+What is published, what CI runs and what the documentation says match the code.
+
+- Add `include` lists to both manifests and a `LICENSE` file to `syn/`.
+- Replace the licence text in the file headers with `Apache-2.0`, and add the header to `src/format.rs` and `syn/src/arg.rs`.
+- Run the workflows for `develop` as well as `master`.
+- Make `test/wasm` a `no_std` crate which uses every derive and has `wasm_bindgen_test` tests; run those in CI and drop the unused `wasm-bindgen-test` dev-dependency of the root crate.
+- Correct the rustdoc and `README.md`: the wrapped field, `Deref` and `DerefMut`, the `Commented` variant, the generated `Getters` code.
+- Update both changelogs and run the full validation set from the Testing tab.

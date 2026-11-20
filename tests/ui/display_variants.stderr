@@ -1,0 +1,35 @@
+error: expected a string literal
+ --> tests/ui/display_variants.rs:5:28
+  |
+5 |     #[display("{0}", alt = 5)]
+  |                            ^
+
+error: unclosed `{` in format string
+ --> tests/ui/display_variants.rs:8:15
+  |
+8 |     #[display("{", alt = "}")]
+  |               ^^^
+
+error: `Fourth` has no field `0`
+  --> tests/ui/display_variants.rs:10:15
+   |
+10 |     #[display("{0}")]
+   |               ^^^^^
+
+error: `separator` requires a value: expected a string literal
+  --> tests/ui/display_variants.rs:14:19
+   |
+14 |         #[display(separator)]
+   |                   ^^^^^^^^^
+
+error: unknown `display` argument `sep`
+  --> tests/ui/display_variants.rs:16:19
+   |
+16 |         #[display(sep = ", ")]
+   |                   ^^^
+
+error: `display` requires the `separator` argument
+  --> tests/ui/display_variants.rs:16:11
+   |
+16 |         #[display(sep = ", ")]
+   |           ^^^^^^^

@@ -65,6 +65,63 @@ enum FromValues {
     Braced {},
     #[from(u32)]
     Tuple(),
+    #[from(i8)]
+    Pair(i16, bool),
+}
+
+#[derive(From, Debug, PartialEq)]
+#[from(u8)]
+struct EmptyTuple();
+
+#[derive(From, Debug, PartialEq)]
+#[from(u8)]
+struct EmptyNamed {}
+
+#[derive(From, Debug, PartialEq)]
+struct SingleNamed {
+    value: u8,
+}
+
+#[derive(From, Debug, PartialEq)]
+#[from(u8)]
+struct Widened {
+    value: u16,
+}
+
+#[derive(From, Default, Debug, PartialEq)]
+#[from(u8)]
+struct TypeLevelNamed {
+    first: u16,
+    second: u16,
+}
+
+#[derive(From, Default, Debug, PartialEq)]
+#[from(u8)]
+struct TypeLevelTuple(u16, u16);
+
+#[derive(From, Debug, PartialEq)]
+struct Config {
+    #[from]
+    name: &'static str,
+    retries: u8,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            name: "",
+            retries: 3,
+        }
+    }
+}
+
+#[derive(From)]
+#[allow(dead_code)]
+union Either {
+    #[from]
+    int: u32,
+    #[from]
+    float: f32,
 }
 
 #[derive(From, Debug, PartialEq)]
@@ -122,6 +179,24 @@ fn generates_struct_and_enum_conversions() {
     assert_eq!(NonPathTypes::from(1u64), NonPathTypes::Number);
     assert_eq!(NonPathTypes::from(1i64), NonPathTypes::Number);
     assert_eq!(TypeLevel::from(std::fmt::Error), TypeLevel);
+}
+
+#[test]
+fn converts_into_one_field_and_defaults_the_others() {
+    assert_eq!(FromValues::from(5i8), FromValues::Pair(5, false));
+    assert_eq!(EmptyTuple::from(1), EmptyTuple());
+    assert_eq!(EmptyNamed::from(1), EmptyNamed {});
+    assert_eq!(SingleNamed::from(1), SingleNamed { value: 1 });
+    assert_eq!(Widened::from(1), Widened { value: 1 });
+    assert_eq!(TypeLevelNamed::from(1), TypeLevelNamed::default());
+    assert_eq!(TypeLevelTuple::from(1), TypeLevelTuple(1, 0));
+    // A structure with named fields takes the other fields from its own `Default`.
+    assert_eq!(Config::from("name"), Config {
+        name: "name",
+        retries: 3
+    });
+    let _int = Either::from(7u32);
+    let _float = Either::from(0.5f32);
 }
 
 #[test]

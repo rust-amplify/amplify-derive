@@ -1,0 +1,11 @@
+error: Deriving `From`: there is nothing to convert from, as no `#[from]` attribute is given
+ --> tests/ui/from_nothing.rs:4:8
+  |
+4 | struct Pair(u32, i16);
+  |        ^^^^
+
+error: Deriving `From`: there is nothing to convert from, as no `#[from]` attribute is given
+ --> tests/ui/from_nothing.rs:7:6
+  |
+7 | enum Variants {
+  |      ^^^^^^^^

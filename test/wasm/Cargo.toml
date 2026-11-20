@@ -4,11 +4,19 @@ members = ["."]
 [package]
 name = "amplify_derive_wasm_test"
 version = "0.1.0"
-edition = "2021"
+description = "A no_std crate which uses every amplify_derive macro and is tested on wasm32"
+edition = "2024"
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 amplify_derive = { path = "../.." }
+amplify = { version = "4.0.0", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.84"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"

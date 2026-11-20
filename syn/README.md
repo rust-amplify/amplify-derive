@@ -21,8 +21,12 @@ reads the attributes through that statement.
   attribute is read once per item (`single`), merged over all its occurrences
   (`merged`) or occurrence by occurrence (`each`).
 - **Errors.** Whatever breaks the rules is a `syn::Error` at the offending
-  argument. All errors of an attribute are reported together, and no input
+  argument. All errors of an attribute are reported together, `collect_all`
+  does the same for the attributes of all fields or variants, and no input
   makes the check panic.
+- **Faults of the macro.** Asking a `ParametrizedAttr` for an argument which
+  its rules do not declare panics, so a misspelled name in a derive macro
+  fails its first test.
 - **Grammar.** Underneath, `Attr`, `Form`, `Arg`, `NamedArg` and `Value`
   parse `#[name]`, `#[name = value]` and `#[name(...)]` with literals, types
   and `name = value` arguments.

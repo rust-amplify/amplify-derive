@@ -1,19 +1,22 @@
 // Rust language amplification derive library providing multiple generic trait
 // implementations, type wrappers, derive macros and other language enhancements
 //
+// SPDX-License-Identifier: Apache-2.0
+//
 // Written in 2019-2020 by
 //     Dr. Maxim Orlovsky <orlovsky@pandoracore.com>
 //
-// To the extent possible under law, the author(s) have dedicated all
-// copyright and related and neighboring rights to this software to
-// the public domain worldwide. This software is distributed without
-// any warranty.
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not
+// use this file except in compliance with the License. You may obtain a copy of
+// the License at <http://www.apache.org/licenses/LICENSE-2.0>
 //
-// You should have received a copy of the MIT License
-// along with this software.
-// If not, see <https://opensource.org/licenses/MIT>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations under
+// the License.
 
-use amplify_syn::{ArgValueReq, AttrReq, ValueClass};
+use amplify_syn::{ArgValueReq, AttrReq, ValueClass, collect_all};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::{quote, quote_spanned};
 use syn::ext::IdentExt;
@@ -28,7 +31,7 @@ fn rules(field: bool) -> AttrReq {
         .arg("all", ArgValueReq::Prohibited)
         .arg("as_copy", ArgValueReq::with_default(""))
         .arg("as_clone", ArgValueReq::with_default(""))
-        .arg("as_ref", ArgValueReq::with_default(""))
+        .arg("as_ref", ArgValueReq::Optional(ValueClass::Str))
         .arg("as_mut", ArgValueReq::with_default("_mut"))
         .conflict("all", &["as_copy", "as_clone", "as_ref", "as_mut"])
         .conflict("as_copy", &["as_clone"]);
@@ -65,67 +68,58 @@ impl Getter {
         let attr = rules(field).merged(attrs)?;
         let name = |arg: &str| attr.str(arg).map(LitStr::value);
         let all = |suffix: &str| attr.has("all").then(|| suffix.to_owned());
-        let mut getter = Self {
+        let as_copy = name("as_copy");
+        let as_clone = name("as_clone").or_else(|| all(""));
+        // The borrowing getter has the plain name, unless the copying or the
+        // cloning one takes it.
+        let plain = as_copy.is_none() && as_clone.is_none();
+        let as_ref = (attr.has("as_ref") || attr.has("all"))
+            .then(|| name("as_ref").unwrap_or_else(|| if plain { "" } else { "_ref" }.to_owned()));
+        Ok(Self {
             prefix: name("prefix"),
-            skip: attr.has("skip"),
-            base: name("base_name"),
-            as_copy: name("as_copy"),
-            as_clone: name("as_clone").or_else(|| all("")),
-            as_ref: name("as_ref").or_else(|| all("_ref")),
+            skip: field && attr.has("skip"),
+            base: field.then(|| name("base_name")).flatten(),
+            as_copy,
+            as_clone,
+            as_ref,
             as_mut: name("as_mut").or_else(|| all("_mut")),
-        };
-        getter.normalize();
-        Ok(getter)
-    }
-
-    /// Applies the defaults for one set of arguments: a plain borrowing getter
-    /// is dropped when its name would clash with the copying or cloning one,
-    /// and it is added when no method was requested at all.
-    fn normalize(&mut self) {
-        let owned = self.as_copy.is_some() || self.as_clone.is_some();
-        if owned && self.as_ref.as_deref() == Some("") {
-            self.as_ref = None;
-        }
-        if !owned && self.as_ref.is_none() && self.as_mut.is_none() {
-            self.as_ref = Some(String::new());
-        }
+        })
     }
 
     /// Puts the field-level arguments over the type-level ones.
     ///
-    /// Field-level arguments replace type-level ones one by one. The copying,
-    /// cloning and borrowing getters form one group: when the field-level set
-    /// (after its own defaults are applied) names any of them, the whole group
-    /// is taken from the field. `as_mut` is independent of that group.
+    /// The copying, cloning and borrowing getters form one set: a field which
+    /// names any of them replaces the whole set of the type. `prefix` and
+    /// `as_mut` are replaced on their own.
     fn over(self, global: &Self) -> Self {
-        let group = if self.as_copy.is_some() || self.as_clone.is_some() || self.as_ref.is_some() {
-            (self.as_copy, self.as_clone, self.as_ref)
-        } else {
-            (global.as_copy.clone(), global.as_clone.clone(), global.as_ref.clone())
+        let own = self.as_copy.is_some() || self.as_clone.is_some() || self.as_ref.is_some();
+        let set = |field: Option<String>, global: &Option<String>| {
+            if own { field } else { global.clone() }
         };
-        let mut getter = Self {
+        Self {
             prefix: self.prefix.or_else(|| global.prefix.clone()),
             skip: self.skip,
             base: self.base,
-            as_copy: group.0,
-            as_clone: group.1,
-            as_ref: group.2,
+            as_copy: set(self.as_copy, &global.as_copy),
+            as_clone: set(self.as_clone, &global.as_clone),
+            as_ref: set(self.as_ref, &global.as_ref),
             as_mut: self.as_mut.or_else(|| global.as_mut.clone()),
-        };
-        getter.normalize();
-        getter
+        }
     }
 
-    /// The methods to derive, each with the suffix of its name.
+    /// The methods to derive, each with the suffix of its name. Where no
+    /// copying, cloning or borrowing getter is asked for, the borrowing one
+    /// is derived.
     fn methods(&self) -> impl Iterator<Item = (Method, &str)> {
+        let none = self.as_copy.is_none() && self.as_clone.is_none() && self.as_ref.is_none();
         [
-            (Method::Copy, &self.as_copy),
-            (Method::Clone, &self.as_clone),
-            (Method::AsRef, &self.as_ref),
-            (Method::AsMut, &self.as_mut),
+            (Method::Copy, self.as_copy.as_deref()),
+            (Method::Clone, self.as_clone.as_deref()),
+            (Method::AsRef, self.as_ref.as_deref().or(none.then_some(""))),
+            (Method::AsMut, self.as_mut.as_deref()),
         ]
         .into_iter()
-        .filter_map(|(method, suffix)| Some((method, suffix.as_deref()?)))
+        .filter_map(|(method, suffix)| Some((method, suffix?)))
     }
 }
 
@@ -170,15 +164,15 @@ pub(crate) fn derive(input: DeriveInput) -> Result<TokenStream2> {
         }
     };
 
-    let mut methods = Vec::with_capacity(fields.len());
-    for field in fields {
-        methods.extend(field_methods(field, struct_name, &global)?);
-    }
+    let methods = fields
+        .iter()
+        .map(|field| field_methods(field, struct_name, &global));
+    let methods = collect_all(methods)?;
 
     Ok(quote! {
         #[automatically_derived]
         impl #impl_generics #struct_name #ty_generics #where_clause {
-            #( #methods )*
+            #( #( #methods )* )*
         }
     })
 }
@@ -243,7 +237,7 @@ fn field_methods(field: &Field, struct_name: &Ident, global: &Getter) -> Result<
             }
         })
     });
-    methods.collect()
+    collect_all(methods)
 }
 
 #[cfg(test)]
