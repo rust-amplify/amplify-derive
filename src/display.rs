@@ -308,7 +308,7 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let missing = || {
         let message =
             format!("Deriving `Display`: required attribute `{NAME}` is missing.\n{EXAMPLE}");
-        Error::new(input.span(), message)
+        Error::new_spanned(&input, message)
     };
 
     let content = match &input.data {

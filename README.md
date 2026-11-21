@@ -20,15 +20,15 @@ Minimum supported Rust version (MSRV): 1.100.0. Rust edition: 2024.
 ## Overview
 
 - [Display](#display-derive)
-- [From](#from-derive)
 - [Error](#error-derive)
-- [Getters](#getters-derive)
+- [From](#from-derive)
 - [Wrapper](#wrapper-derive)
+- [Getters](#getters-derive)
 - [AsAny](#asany-derive)
 
-## Display derive 
+## Display derive
 
-1. Generate [`Display`] descriptions using other formatting trait:
+1. Generate `Display` descriptions using other formatting trait:
    ```rust
     #[derive(Display, Debug)]
     #[display(Debug)]
@@ -46,7 +46,7 @@ Minimum supported Rust version (MSRV): 1.100.0. Rust edition: 2024.
         }
     }
    ```
-   Formatting function must return [`String`] and take a single `self`
+   Formatting function must return `String` and take a single `self`
    argument (if you need formatting with streamed output, use one of
    existing formatting traits as shown in pt. 1).
 3. Custom format string:
@@ -163,9 +163,9 @@ enum Error {
 
 ## From derive
 
-Implements [`From`] trait for the whole entity and/or its separate fields.
+Implements `From` trait for the whole entity and/or its separate fields.
 Works well with `#[derive(Error)]` and, in many cases may require
-[`Default`] implementation (for details, pls see Examples below)
+`Default` implementation (for details, pls see [Examples](#examples) below)
 
 Deriving `From` where there is nothing to convert from, or two conversions
 from the same type, is an error.
@@ -314,8 +314,8 @@ assert_eq!(two.list(), &vec![1]);
 
 ## AsAny derive
 
-Trait [`amplify::AsAny`] allows simple conversion of any type into a generic
-"thick" pointer `&dyn Any` (see [`::core::any::Any`]), that can be later
+Trait `amplify::AsAny` allows simple conversion of any type into a generic
+"thick" pointer `&dyn Any` (see `::core::any::Any`), that can be later
 converted back to the original type with a graceful failing for all other
 conversions. `AsAny` derive macro allows to implement this trait for
 arbitrary time without much hussle:

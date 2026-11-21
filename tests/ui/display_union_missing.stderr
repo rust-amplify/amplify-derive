@@ -2,5 +2,7 @@ error: Deriving `Display`: required attribute `display` is missing.
        #[display("format {} string" | Trait | Type::function)]
  --> tests/ui/display_union_missing.rs:4:1
   |
-4 | union Value {
-  | ^^^^^
+4 | / union Value {
+5 | |     field: u32,
+6 | | }
+  | |_^
