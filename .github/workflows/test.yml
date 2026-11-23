@@ -2,9 +2,15 @@ name: Tests
 
 on:
   push:
-    branches: [ master, develop ]
+    branches:
+      - master
+    tags:
+      - 'v[0-9]+.*'
   pull_request:
-    branches: [ master, develop ]
+    branches:
+      - master
+      - develop
+      - 'v[0-9]+.*'
 
 permissions:
   contents: read
@@ -14,11 +20,20 @@ env:
 
 jobs:
   testing:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - macos-latest
+          - windows-11-arm
+          - windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master = v1.82.0
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -31,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master = v1.82.0
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown

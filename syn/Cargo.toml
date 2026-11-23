@@ -1,6 +1,6 @@
 [package]
 name = "amplify_syn"
-version = "3.0.0"
+version = "3.0.0-beta.1"
 description = "Amplifying syn capabilities: helper functions for creating proc macro libraries"
 authors = ["Dr. Maxim Orlovsky <dr@orlovsky.ch>"]
 keywords = ["generics", "derive", "wrap", "patterns"]

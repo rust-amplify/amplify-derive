@@ -2,9 +2,15 @@ name: Build
 
 on:
   push:
-    branches: [ master, develop ]
+    branches:
+      - master
+    tags:
+      - 'v[0-9]+.*'
   pull_request:
-    branches: [ master, develop ]
+    branches:
+      - master
+      - develop
+      - 'v[0-9]+.*'
 
 permissions:
   contents: read
@@ -21,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Rust ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # master
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3

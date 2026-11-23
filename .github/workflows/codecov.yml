@@ -2,9 +2,14 @@ name: Codecov
 
 on:
   push:
-    branches: [ master, develop ]
+    branches:
+      - master
+    tags:
+      - 'v[0-9]+.*'
   pull_request:
-    branches: [ master, develop ]
+    branches:
+      - master
+      - 'v[0-9]+.*'
 
 permissions:
   contents: read
@@ -18,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: llvm-tools-preview

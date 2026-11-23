@@ -1,8 +1,11 @@
 Contributing guidelines
 =======================
 
-Contributions are very welcome. When contributing code, please follow these
-simple guidelines.
+This project does not accept external contributions,
+neither from humans, nor from LLMs;
+unless they are directly invited by the maintainers.
+
+When invited to contribute, please follow these simple guidelines.
 
 #### Table Of Contents
 - [Contribution workflow](#contribution-workflow)

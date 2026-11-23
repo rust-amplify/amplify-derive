@@ -15,7 +15,7 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "5.0.0"
+version = "5.0.0-beta.1"
 dependencies = [
  "amplify",
  "amplify_syn",
@@ -34,7 +34,7 @@ checksum = "ddce3bc63e807ea02065e8d8b702695f3d302ae4158baddff8b0ce5c73947251"
 
 [[package]]
 name = "amplify_syn"
-version = "3.0.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "proc-macro2",
  "quote",
