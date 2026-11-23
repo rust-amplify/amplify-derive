@@ -421,8 +421,17 @@ impl Check<'_> {
             name_value,
             ..
         } = self.rules;
+        let max = if list.classes.is_empty() {
+            Some(1)
+        } else {
+            list.max
+        };
         match name_value {
-            Some(class) if class.accepts(value) => return self.unnamed(value.clone()),
+            Some(class) if class.accepts(value) => {
+                if let Some(max) = max.filter(|max| self.content.unnamed.len() >= *max) {
+                    self.too_many_unnamed(value, max);
+                }
+            }
             Some(class) => self.error(value, format!("expected {class}")),
             None if args.is_empty() && list.classes.is_empty() => {
                 self.error(value, format!("`{name}` takes no value"))
@@ -504,13 +513,18 @@ impl Check<'_> {
             };
             self.error(&value, message);
         } else if let Some(max) = list.max.filter(|max| self.content.unnamed.len() >= *max) {
-            let limit = match max {
-                1 => "a single unnamed argument".to_owned(),
-                max => format!("at most {max} unnamed arguments"),
-            };
-            self.error(&value, format!("unexpected argument: `{name}` takes {limit}"));
+            self.too_many_unnamed(&value, max);
         }
         self.content.unnamed.push(value);
+    }
+
+    fn too_many_unnamed(&mut self, value: &Value, max: usize) {
+        let name = self.rules.name;
+        let limit = match max {
+            1 => "a single unnamed argument".to_owned(),
+            max => format!("at most {max} unnamed arguments"),
+        };
+        self.error(value, format!("unexpected argument: `{name}` takes {limit}"));
     }
 
     /// Checks the rules which concern the attribute as a whole.
@@ -828,6 +842,54 @@ mod tests {
                 .len(),
             3
         );
+
+        let tag = AttrReq::new("tag").name_value(ValueClass::Str);
+        let value = tag
+            .single(&attrs(r#"#[tag = "hello"]"#))
+            .expect("standalone name_value accepts valid value")
+            .expect("present");
+        assert_eq!(
+            value.unnamed()[0]
+                .as_str()
+                .map(|lit| lit.value())
+                .as_deref(),
+            Some("hello")
+        );
+        assert!(
+            tag.single(&attrs("#[tag]"))
+                .expect("bare tag allowed")
+                .is_some()
+        );
+        assert_eq!(messages(tag.single(&attrs("#[tag = 5]"))), ["expected a string literal"]);
+        assert_eq!(
+            messages(tag.single(&attrs(r#"#[tag("hello")]"#))),
+            ["`tag` takes no arguments"]
+        );
+        assert_eq!(messages(tag.merged(&attrs(r#"#[tag = "a"] #[tag = "b"]"#))), [
+            "unexpected argument: `tag` takes a single unnamed argument"
+        ]);
+    }
+
+    #[test]
+    fn keyword_arguments_work_as_flags_and_named_values() {
+        let rules = AttrReq::new("getter")
+            .arg("crate", ArgValueReq::Prohibited)
+            .arg("self", ArgValueReq::Prohibited)
+            .arg("super", ArgValueReq::Prohibited)
+            .arg("type", ArgValueReq::required(ValueClass::Str))
+            .conflict("crate", &["self", "super"])
+            .conflict("self", &["super"]);
+        let attr = rules
+            .merged(&attrs(r#"#[getter(crate, type = "item")]"#))
+            .expect("keyword arguments accepted");
+        assert!(attr.has("crate") && !attr.has("self") && !attr.has("super"));
+        assert_eq!(str(&attr, "type").as_deref(), Some("item"));
+        assert_eq!(messages(rules.merged(&attrs("#[getter(crate, self, super = 1)]"))), [
+            "`super` takes no value",
+            "`crate` and `self` cannot be used together",
+            "`crate` and `super` cannot be used together",
+            "`self` and `super` cannot be used together",
+        ]);
     }
 
     #[test]

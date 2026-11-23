@@ -121,6 +121,39 @@ pub mod documented {
     }
 }
 
+mod visibility {
+    pub mod child {
+        use amplify_derive::Getters;
+
+        #[derive(Getters, Default)]
+        #[getter(crate, prefix = "get_", as_copy)]
+        pub struct Scoped {
+            crate_visible: u8,
+            #[getter(super, prefix)]
+            parent_visible: u8,
+            #[getter(self)]
+            private_visible: u8,
+        }
+
+        impl Scoped {
+            pub fn new(a: u8, b: u8, c: u8) -> Self {
+                Self {
+                    crate_visible: a,
+                    parent_visible: b,
+                    private_visible: c,
+                }
+            }
+
+            pub fn check_self(&self) -> u8 { self.get_private_visible() }
+        }
+    }
+
+    pub fn check_super_and_crate() -> (u8, u8, u8) {
+        let scoped = child::Scoped::new(1, 2, 3);
+        (scoped.get_crate_visible(), scoped.parent_visible(), scoped.check_self())
+    }
+}
+
 #[test]
 fn generates_documented_getter_variants_and_overrides() {
     let basic = Basic::default();
@@ -217,6 +250,9 @@ fn generates_documented_getter_variants_and_overrides() {
     assert_eq!(keywords.r#fn(), 4);
     assert_eq!(keywords.r#match(), 5);
     assert_eq!(documented::Item { value: 3 }.value(), &3);
+
+    assert_eq!(visibility::check_super_and_crate(), (1, 2, 3));
+    assert_eq!(visibility::child::Scoped::new(7, 8, 9).get_crate_visible(), 7);
 }
 
 #[test]

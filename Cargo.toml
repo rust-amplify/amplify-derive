@@ -25,7 +25,7 @@ name = "amplify_derive"
 version = "5.0.0"
 description = "Powerful derivation macros; part of the 'amplify' library"
 authors = [
-    "Dr. Maxim Orlovsky <orlovsky@ubideco.org>",
+    "Dr. Maxim Orlovsky <dr@orlovsky.ch>",
     "Elichai Turkel <elichai.turkel@gmail.com>"
 ]
 keywords = ["generics", "derive", "wrap", "patterns"]

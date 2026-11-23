@@ -148,6 +148,16 @@ union UnionValue {
     value: u8,
 }
 
+mod hygiene {
+    use amplify_derive::From;
+
+    #[allow(non_upper_case_globals, dead_code)]
+    const v: u8 = 0;
+
+    #[derive(From, Debug, PartialEq)]
+    pub struct Hygienic(pub u8);
+}
+
 #[test]
 fn generates_struct_and_enum_conversions() {
     assert_eq!(Number::from(42), Number(42));
@@ -179,6 +189,7 @@ fn generates_struct_and_enum_conversions() {
     assert_eq!(NonPathTypes::from(1u64), NonPathTypes::Number);
     assert_eq!(NonPathTypes::from(1i64), NonPathTypes::Number);
     assert_eq!(TypeLevel::from(std::fmt::Error), TypeLevel);
+    assert_eq!(hygiene::Hygienic::from(9u8), hygiene::Hygienic(9));
 }
 
 #[test]

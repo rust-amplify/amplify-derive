@@ -33,8 +33,13 @@ fn rules(field: bool) -> AttrReq {
         .arg("as_clone", ArgValueReq::with_default(""))
         .arg("as_ref", ArgValueReq::Optional(ValueClass::Str))
         .arg("as_mut", ArgValueReq::with_default("_mut"))
+        .arg("crate", ArgValueReq::Prohibited)
+        .arg("self", ArgValueReq::Prohibited)
+        .arg("super", ArgValueReq::Prohibited)
         .conflict("all", &["as_copy", "as_clone", "as_ref", "as_mut"])
-        .conflict("as_copy", &["as_clone"]);
+        .conflict("as_copy", &["as_clone"])
+        .conflict("crate", &["self", "super"])
+        .conflict("self", &["super"]);
     if !field {
         return rules;
     }
@@ -43,10 +48,18 @@ fn rules(field: bool) -> AttrReq {
         .arg("base_name", ArgValueReq::required(ValueClass::Str))
 }
 
+#[derive(Copy, Clone)]
+enum Visibility {
+    Crate,
+    SelfMod,
+    Super,
+}
+
 /// The arguments of `#[getter(...)]`. Each method argument holds the suffix
 /// of the method name.
 struct Getter {
     prefix: Option<String>,
+    vis: Option<Visibility>,
     skip: bool,
     base: Option<String>,
     as_copy: Option<String>,
@@ -75,8 +88,18 @@ impl Getter {
         let plain = as_copy.is_none() && as_clone.is_none();
         let as_ref = (attr.has("as_ref") || attr.has("all"))
             .then(|| name("as_ref").unwrap_or_else(|| if plain { "" } else { "_ref" }.to_owned()));
+        let vis = if attr.has("crate") {
+            Some(Visibility::Crate)
+        } else if attr.has("self") {
+            Some(Visibility::SelfMod)
+        } else if attr.has("super") {
+            Some(Visibility::Super)
+        } else {
+            None
+        };
         Ok(Self {
             prefix: name("prefix"),
+            vis,
             skip: field && attr.has("skip"),
             base: field.then(|| name("base_name")).flatten(),
             as_copy,
@@ -89,8 +112,8 @@ impl Getter {
     /// Puts the field-level arguments over the type-level ones.
     ///
     /// The copying, cloning and borrowing getters form one set: a field which
-    /// names any of them replaces the whole set of the type. `prefix` and
-    /// `as_mut` are replaced on their own.
+    /// names any of them replaces the whole set of the type. `prefix`,
+    /// visibility and `as_mut` are replaced on their own.
     fn over(self, global: &Self) -> Self {
         let own = self.as_copy.is_some() || self.as_clone.is_some() || self.as_ref.is_some();
         let set = |field: Option<String>, global: &Option<String>| {
@@ -98,6 +121,7 @@ impl Getter {
         };
         Self {
             prefix: self.prefix.or_else(|| global.prefix.clone()),
+            vis: self.vis.or(global.vis),
             skip: self.skip,
             base: self.base,
             as_copy: set(self.as_copy, &global.as_copy),
@@ -130,7 +154,9 @@ impl Getter {
 /// which compiles.
 fn method_ident(name: &str, span: Span) -> Result<Ident> {
     let mut ident = syn::parse_str::<Ident>(&format!("r#{name}"))
-        .map_err(|_| Error::new(span, format!("`{name}` cannot be used as a method name")))?;
+        .ok()
+        .filter(|ident| ident.unraw() == name)
+        .ok_or_else(|| Error::new(span, format!("`{name}` cannot be used as a method name")))?;
     ident.set_span(span);
     Ok(ident)
 }
@@ -195,6 +221,12 @@ fn field_methods(field: &Field, struct_name: &Ident, global: &Getter) -> Result<
         .base
         .clone()
         .unwrap_or_else(|| plain_name.to_string());
+    let vis = match getter.vis {
+        None => quote!(pub),
+        Some(Visibility::Crate) => quote!(pub(crate)),
+        Some(Visibility::SelfMod) => quote!(pub(self)),
+        Some(Visibility::Super) => quote!(pub(super)),
+    };
 
     let methods = getter.methods().map(|(method, suffix)| {
         let fn_name = method_ident(&format!("{prefix}{base}{suffix}"), span)
@@ -232,7 +264,7 @@ fn field_methods(field: &Field, struct_name: &Ident, global: &Getter) -> Result<
             #[doc = #fn_doc]
             #( #docs )*
             #[inline]
-            pub fn #fn_name(#receiver) -> #ret_ty {
+            #vis fn #fn_name(#receiver) -> #ret_ty {
                 #ret_value
             }
         })
@@ -285,9 +317,21 @@ mod tests {
             let ident = ident.map(|ident| ident.to_string());
             assert_eq!(ident.ok(), Some(format!("r#{name}")));
         }
-        for name in
-            ["self", "Self", "super", "crate", "_", "", "1st", "r#type", "get-value", "a b", "a(b)"]
-        {
+        for name in [
+            "self",
+            "Self",
+            "super",
+            "crate",
+            "_",
+            "",
+            "1st",
+            "r#type",
+            "get-value",
+            "a b",
+            "a(b)",
+            "foo ",
+            "foo/*x*/",
+        ] {
             let error = method_ident(name, Span::call_site()).expect_err(name);
             assert_eq!(error.to_string(), format!("`{name}` cannot be used as a method name"));
         }

@@ -229,12 +229,14 @@ impl Wrappers for Wrapper {
             inner,
             amplify_crate,
         } = wrapped;
+        let inner_arg = mixed("inner");
+        let wrapped_arg = mixed("wrapped");
         let wrapper = wrapped.implement(&quote!(#amplify_crate::Wrapper), None, quote! {
             type Inner = #inner;
 
             #[inline]
-            fn from_inner(inner: Self::Inner) -> Self {
-                <Self as ::core::convert::From<Self::Inner>>::from(inner)
+            fn from_inner(#inner_arg: Self::Inner) -> Self {
+                <Self as ::core::convert::From<Self::Inner>>::from(#inner_arg)
             }
 
             #[inline]
@@ -258,8 +260,8 @@ impl Wrappers for Wrapper {
             #[automatically_derived]
             impl #impl_generics ::core::convert::From<#ident #ty_generics> for #inner #where_clause {
                 #[inline]
-                fn from(wrapped: #ident #ty_generics) -> Self {
-                    wrapped.#field
+                fn from(#wrapped_arg: #ident #ty_generics) -> Self {
+                    #wrapped_arg.#field
                 }
             }
         }
@@ -274,29 +276,32 @@ impl Wrappers for Wrapper {
         } = wrapped;
         match self {
             Self::FromStr => {
+                let s = mixed("s");
                 let from_str = quote!(::core::str::FromStr);
                 wrapped.implement(&from_str, Some(&from_str), quote! {
                     type Err = <#inner as #from_str>::Err;
 
                     #[inline]
-                    fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
-                        <#inner as #from_str>::from_str(s)
+                    fn from_str(#s: &str) -> ::core::result::Result<Self, Self::Err> {
+                        <#inner as #from_str>::from_str(#s)
                             .map(<Self as ::core::convert::From<#inner>>::from)
                     }
                 })
             }
             Self::FromHex => {
+                let iter = mixed("iter");
+                let iter_ty = Ident::new("__AmplifyIter", Span::mixed_site());
                 let hex = quote!(#amplify_crate::hex);
                 let from_hex = quote!(#hex::FromHex);
                 wrapped.implement(&from_hex, Some(&from_hex), quote! {
                     #[inline]
-                    fn from_byte_iter<I>(iter: I) -> ::core::result::Result<Self, #hex::Error>
+                    fn from_byte_iter<#iter_ty>(#iter: #iter_ty) -> ::core::result::Result<Self, #hex::Error>
                     where
-                        I: ::core::iter::Iterator<Item = ::core::result::Result<u8, #hex::Error>>
+                        #iter_ty: ::core::iter::Iterator<Item = ::core::result::Result<u8, #hex::Error>>
                             + ::core::iter::ExactSizeIterator
                             + ::core::iter::DoubleEndedIterator,
                     {
-                        <#inner as #from_hex>::from_byte_iter(iter)
+                        <#inner as #from_hex>::from_byte_iter(#iter)
                             .map(<Self as ::core::convert::From<#inner>>::from)
                     }
                 })
@@ -308,15 +313,16 @@ impl Wrappers for Wrapper {
             Self::UpperHex |
             Self::LowerExp |
             Self::UpperExp => {
+                let formatter = mixed("formatter");
                 let name = Ident::new(self.name(), Span::call_site());
                 let fmt = quote!(::core::fmt::#name);
                 wrapped.implement(&fmt, Some(&fmt), quote! {
                     #[inline]
                     fn fmt(
                         &self,
-                        formatter: &mut ::core::fmt::Formatter<'_>,
+                        #formatter: &mut ::core::fmt::Formatter<'_>,
                     ) -> ::core::fmt::Result {
-                        #fmt::fmt(&self.#field, formatter)
+                        #fmt::fmt(&self.#field, #formatter)
                     }
                 })
             }
@@ -339,14 +345,15 @@ impl Wrappers for Wrapper {
             Self::IndexTo |
             Self::IndexInclusive |
             Self::IndexToInclusive => {
+                let idx = mixed("index");
                 let by = index_type(self.name());
                 let index = quote!(::core::ops::Index<#by>);
                 wrapped.implement(&index, Some(&index), quote! {
                     type Output = <#inner as #index>::Output;
 
                     #[inline]
-                    fn index(&self, index: #by) -> &Self::Output {
-                        <#inner as #index>::index(&self.#field, index)
+                    fn index(&self, #idx: #by) -> &Self::Output {
+                        <#inner as #index>::index(&self.#field, #idx)
                     }
                 })
             }
@@ -372,14 +379,15 @@ impl Wrappers for Wrapper {
             Self::BitAnd |
             Self::BitOr |
             Self::BitXor => {
+                let rhs = mixed("rhs");
                 let (operator, method, rest) = wrapped.operator(self.name());
                 let bound = quote!(#operator<Output = #inner>);
                 wrapped.implement(&operator, Some(&bound), quote! {
                     type Output = Self;
 
                     #[inline]
-                    fn #method(self, rhs: Self) -> Self {
-                        Self { #field: #operator::#method(self.#field, rhs.#field), #rest }
+                    fn #method(self, #rhs: Self) -> Self {
+                        Self { #field: #operator::#method(self.#field, #rhs.#field), #rest }
                     }
                 })
             }
@@ -469,12 +477,13 @@ impl Wrappers for WrapperMut {
             Self::IndexToMut |
             Self::IndexInclusiveMut |
             Self::IndexToInclusiveMut => {
+                let idx = mixed("index");
                 let by = index_type(self.name());
                 let index_mut = quote!(::core::ops::IndexMut<#by>);
                 wrapped.implement(&index_mut, Some(&index_mut), quote! {
                     #[inline]
-                    fn index_mut(&mut self, index: #by) -> &mut Self::Output {
-                        <#inner as #index_mut>::index_mut(&mut self.#field, index)
+                    fn index_mut(&mut self, #idx: #by) -> &mut Self::Output {
+                        <#inner as #index_mut>::index_mut(&mut self.#field, #idx)
                     }
                 })
             }
@@ -488,11 +497,12 @@ impl Wrappers for WrapperMut {
             Self::BitAndAssign |
             Self::BitOrAssign |
             Self::BitXorAssign => {
+                let rhs = mixed("rhs");
                 let (operator, method, _) = wrapped.operator(self.name());
                 wrapped.implement(&operator, Some(&operator), quote! {
                     #[inline]
-                    fn #method(&mut self, rhs: Self) {
-                        #operator::#method(&mut self.#field, rhs.#field)
+                    fn #method(&mut self, #rhs: Self) {
+                        #operator::#method(&mut self.#field, #rhs.#field)
                     }
                 })
             }
@@ -505,6 +515,9 @@ impl Wrappers for WrapperMut {
         }
     }
 }
+
+/// A local parameter identifier that cannot collide with caller constants.
+fn mixed(name: &str) -> Ident { format_ident!("__amplify_{name}", span = Span::mixed_site()) }
 
 /// Returns the type which the index trait `name` indexes the wrapper by.
 fn index_type(name: &str) -> TokenStream2 {

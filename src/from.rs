@@ -18,7 +18,7 @@
 // the License.
 
 use amplify_syn::{AttrReq, ListReq, Value, ValueClass, collect_all};
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::spanned::Spanned;
 use syn::{Attribute, Data, DeriveInput, Error, Fields, Result, Type};
@@ -72,10 +72,16 @@ fn conversions(
 
     // A value given to the item as a whole goes into the only field, or into
     // the first one where the fields have no names. Other items ignore the
-    // value.
-    let positional = matches!(fields, Fields::Unnamed(_)) || kind == Kind::Union;
+    // value; multi-field unions must specify the target field explicitly.
+    let positional = matches!(fields, Fields::Unnamed(_));
     let target = (single.is_some() || positional && !fields.is_empty()).then_some(0);
     for attr in asked.next().unwrap_or_default() {
+        if kind == Kind::Union && fields.len() > 1 {
+            return Err(attr.error(
+                "type-level `#[from]` is not allowed on multi-field unions; specify `#[from]` \
+                 right ahead of the target field",
+            ));
+        }
         let explicit = attr.unnamed().first().and_then(Value::as_type);
         let Some(from) = explicit.or(single.map(|field| &field.ty)) else {
             return Err(attr.error(
@@ -97,6 +103,8 @@ fn conversions(
     Ok(conversions)
 }
 
+fn from_param() -> Ident { Ident::new("__amplify_v", Span::mixed_site()) }
+
 /// Makes the expression which puts the value `v` into the `target` field.
 ///
 /// The other fields take their defaults. A structure with named fields takes
@@ -107,13 +115,14 @@ fn construct(
     fields: &Fields,
     target: Option<usize>,
 ) -> TokenStream2 {
+    let v = from_param();
     let own_default = kind == Kind::Struct && matches!(fields, Fields::Named(_));
     let field_wise = !own_default && kind != Kind::Union;
     let members = fields.members().enumerate();
     let members = members.filter(|(index, _)| field_wise || target == Some(*index));
     let members = members.map(|(index, member)| {
         if target == Some(index) {
-            quote! { #member: ::core::convert::Into::into(v), }
+            quote! { #member: ::core::convert::Into::into(#v), }
         } else {
             quote! { #member: ::core::default::Default::default(), }
         }
@@ -164,11 +173,12 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
         }
     }
 
+    let v = from_param();
     let impls = found.iter().map(|Conversion { from, value, .. }| {
         quote! {
             #[automatically_derived]
             impl #impl_generics ::core::convert::From<#from> for #ident_name #ty_generics #where_clause {
-                fn from(v: #from) -> Self {
+                fn from(#v: #from) -> Self {
                     #value
                 }
             }

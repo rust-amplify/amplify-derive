@@ -1,0 +1,38 @@
+error: `crate` and `self` cannot be used together
+  --> tests/ui/getter_visibility_conflict.rs:12:17
+   |
+12 | #[getter(crate, self)]
+   |                 ^^^^
+
+error: `crate` takes no value
+  --> tests/ui/getter_visibility_conflict.rs:19:35
+   |
+19 |     #[getter(self, super, crate = true)]
+   |                                   ^^^^
+
+error: `self` and `crate` cannot be used together
+  --> tests/ui/getter_visibility_conflict.rs:19:27
+   |
+19 |     #[getter(self, super, crate = true)]
+   |                           ^^^^^
+
+error: `super` and `crate` cannot be used together
+  --> tests/ui/getter_visibility_conflict.rs:19:27
+   |
+19 |     #[getter(self, super, crate = true)]
+   |                           ^^^^^
+
+error: `self` and `super` cannot be used together
+  --> tests/ui/getter_visibility_conflict.rs:19:20
+   |
+19 |     #[getter(self, super, crate = true)]
+   |                    ^^^^^
+
+error[E0624]: method `value` is private
+  --> tests/ui/getter_visibility_conflict.rs:24:38
+   |
+ 4 |     #[derive(amplify_derive::Getters, Default)]
+   |              ----------------------- private method defined here
+...
+24 |     let _ = inner::Secret::default().value();
+   |                                      ^^^^^ private method

@@ -35,7 +35,11 @@ pub(crate) struct Format {
 }
 
 /// Scans a format string and rewrites positional references to named fields.
-pub(crate) fn scan(source: &str) -> Result<Format, String> {
+#[cfg(test)]
+pub(crate) fn scan(source: &str) -> Result<Format, String> { scan_with_prefix(source, "_") }
+
+/// Scans a format string and rewrites positional references with `prefix`.
+pub(crate) fn scan_with_prefix(source: &str, prefix: &str) -> Result<Format, String> {
     let mut text = String::with_capacity(source.len());
     let mut args = Vec::new();
     let mut traits = Vec::new();
@@ -77,12 +81,12 @@ pub(crate) fn scan(source: &str) -> Result<Format, String> {
                 let (rewritten_head, reference) = if trimmed.is_empty() {
                     let index = implicit;
                     implicit += 1;
-                    (format!("_{index}"), ArgRef::Index(index))
+                    (format!("{prefix}{index}"), ArgRef::Index(index))
                 } else if trimmed.bytes().all(|byte| byte.is_ascii_digit()) {
                     let index = trimmed
                         .parse::<usize>()
                         .map_err(|_| format!("invalid positional index `{trimmed}`"))?;
-                    (format!("_{index}"), ArgRef::Index(index))
+                    (format!("{prefix}{index}"), ArgRef::Index(index))
                 } else {
                     (trimmed.to_owned(), ArgRef::Name(trimmed.to_owned()))
                 };
@@ -95,7 +99,7 @@ pub(crate) fn scan(source: &str) -> Result<Format, String> {
                 text.push_str(&head[head.len() - trailing..]);
                 if let Some(spec) = spec {
                     text.push(':');
-                    text.push_str(&rewrite_spec(spec, &mut args)?);
+                    text.push_str(&rewrite_spec(spec, prefix, &mut args)?);
                 }
                 text.push('}');
                 cursor = close + 1;
@@ -130,7 +134,7 @@ fn spec_trait(spec: Option<&str>) -> &'static str {
     }
 }
 
-fn rewrite_spec(spec: &str, args: &mut Vec<ArgRef>) -> Result<String, String> {
+fn rewrite_spec(spec: &str, prefix: &str, args: &mut Vec<ArgRef>) -> Result<String, String> {
     let mut output = String::with_capacity(spec.len());
     let bytes = spec.as_bytes();
     let mut cursor = 0;
@@ -150,7 +154,7 @@ fn rewrite_spec(spec: &str, args: &mut Vec<ArgRef>) -> Result<String, String> {
                         .parse::<usize>()
                         .map_err(|_| format!("invalid positional index `{token}`"))?;
                     push_unique(args, ArgRef::Index(index));
-                    output.push('_');
+                    output.push_str(prefix);
                     output.push_str(token);
                 } else {
                     push_unique(args, ArgRef::Name(token.to_owned()));
@@ -178,7 +182,7 @@ fn push_unique<T: PartialEq>(list: &mut Vec<T>, item: T) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ArgRef, scan};
+    use super::{ArgRef, scan, scan_with_prefix};
 
     #[test]
     fn rewrites_indices_and_tracks_values_and_format_parameters() {
@@ -202,6 +206,9 @@ mod tests {
             assert_eq!(scanned.text, expected_text, "text for `{source}`");
             assert_eq!(scanned.args, expected_args, "arguments for `{source}`");
         }
+
+        let custom = scan_with_prefix("{0} {_0} {:.1$}", "__").expect("custom prefix");
+        assert_eq!(custom.text, "{__0} {_0} {__0:.__1$}");
     }
 
     #[test]

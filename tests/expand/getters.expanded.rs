@@ -69,19 +69,25 @@ impl Two {
     /**Method cloning [`Two::name`] field.
 */
     #[inline]
-    pub fn r#name(&self) -> String {
+    pub(crate) fn r#name(&self) -> String {
         ::core::clone::Clone::clone(&self.name)
     }
     /**Method borrowing [`Two::list`] field.
 */
     #[inline]
-    pub fn r#list_borrowed(&self) -> &Vec<u8> {
+    pub(self) fn r#list_borrowed(&self) -> &Vec<u8> {
         &self.list
     }
     /**Method returning mutable borrow of [`Two::list`] field.
 */
     #[inline]
-    pub fn r#list_changed(&mut self) -> &mut Vec<u8> {
+    pub(self) fn r#list_changed(&mut self) -> &mut Vec<u8> {
         &mut self.list
+    }
+    /**Method returning copy of [`Two::count`] field.
+*/
+    #[inline]
+    pub(super) fn r#count(&self) -> u8 {
+        self.count
     }
 }

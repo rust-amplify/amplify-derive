@@ -17,14 +17,17 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
-use amplify_syn::{ArgValueReq, Attr, AttrReq, Form, ListReq, Value, ValueClass, collect_all};
+use amplify_syn::{ArgValueReq, AttrReq, ListReq, ValueClass, collect_all};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, quote_spanned};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
-use syn::{Attribute, Data, DeriveInput, Error, Field, Fields, Ident, Lit, LitStr, Path, Result};
+use syn::{
+    Attribute, Data, DeriveInput, Error, Expr, ExprLit, Field, Fields, Ident, Lit, LitStr, Meta,
+    Path, Result, Type, parse_quote,
+};
 
-use crate::format::{ArgRef, Format, scan};
+use crate::format::{ArgRef, Format, scan_with_prefix};
 use crate::util::Bounds;
 
 const NAME: &str = "display";
@@ -99,6 +102,9 @@ impl Technique {
 struct Item<'a> {
     name: String,
     fields: &'a Fields,
+    /// Prefix used when rewriting positional placeholders so they never
+    /// collide with named fields starting with `_`.
+    prefix: String,
     /// The separator which joins the items of each field, if it has one.
     separators: Vec<Option<LitStr>>,
     attrs: &'a [Attribute],
@@ -111,9 +117,18 @@ impl<'a> Item<'a> {
             let attr = field_rules().single(&field.attrs)?;
             Ok(attr.and_then(|attr| attr.str("separator").cloned()))
         };
+        let mut prefix = String::from("_");
+        while fields
+            .iter()
+            .filter_map(|field| field.ident.as_ref())
+            .any(|ident| ident.unraw().to_string().starts_with(&prefix))
+        {
+            prefix.push('_');
+        }
         Ok(Self {
             name: name.unraw().to_string(),
             fields,
+            prefix,
             separators: collect_all(fields.iter().map(separator))?,
             attrs,
             span,
@@ -133,7 +148,8 @@ impl<'a> Item<'a> {
         let f = formatter();
         let (plain, alt) = match technique {
             Some(Technique::Trait(name)) => {
-                bounds.require(quote!(Self), quote!(::core::fmt::#name));
+                let self_ty: Type = parse_quote!(Self);
+                bounds.require(&self_ty, quote!(::core::fmt::#name));
                 let body = quote_spanned! { span => ::core::fmt::#name::fmt(self, #f) };
                 return Ok((TokenStream2::new(), body));
             }
@@ -143,7 +159,7 @@ impl<'a> Item<'a> {
                 return Ok((TokenStream2::new(), body));
             }
             Some(Technique::Format(plain, alt)) => (plain.clone(), alt.clone()),
-            Some(Technique::DocComments) => (self.docs()?, None),
+            Some(Technique::DocComments) => (self.docs(), None),
             Some(Technique::Inner) if !fields.is_empty() => {
                 if matches!(fields, Fields::Named(_)) && fields.len() != 1 {
                     return Err(Error::new(
@@ -193,8 +209,8 @@ impl<'a> Item<'a> {
         used: &mut Vec<usize>,
         bounds: &mut Bounds<'_>,
     ) -> Result<TokenStream2> {
-        let Format { text, args, traits } =
-            scan(&format.value()).map_err(|message| Error::new(format.span(), message))?;
+        let Format { text, args, traits } = scan_with_prefix(&format.value(), &self.prefix)
+            .map_err(|message| Error::new(format.span(), message))?;
         for arg in &args {
             if let ArgRef::Index(index) = arg &&
                 *index >= self.fields.len()
@@ -212,11 +228,16 @@ impl<'a> Item<'a> {
                 bounds.require(&field.ty, quote!(::core::fmt::#name));
             }
         }
+        let mut keys = Vec::new();
         let args = args.iter().filter_map(|arg| {
             let (index, key) = self.field(arg)?;
             if !used.contains(&index) {
                 used.push(index);
             }
+            if keys.contains(&key) {
+                return None;
+            }
+            keys.push(key.clone());
             let value = binding(index);
             Some(match &self.separators[index] {
                 Some(separator) => quote! { #key = #value.join(#separator) },
@@ -235,28 +256,38 @@ impl<'a> Item<'a> {
     /// `r#type` as `{type}`.
     fn field(&self, arg: &ArgRef) -> Option<(usize, Ident)> {
         let fields = self.fields;
-        let position =
-            |index: usize| (index < fields.len()).then(|| (index, format_ident!("_{}", index)));
         match arg {
-            ArgRef::Index(index) => position(*index),
+            ArgRef::Index(index) => {
+                (*index < fields.len()).then(|| (*index, format_ident!("{}{}", self.prefix, index)))
+            }
             ArgRef::Name(name) => {
                 let named = |(index, field): (usize, &Field)| {
                     Some((index, field.ident.clone().filter(|ident| ident.unraw() == name)?))
                 };
-                let mut fields = fields.iter().enumerate();
-                fields.find_map(named).or_else(|| {
-                    position(name.strip_prefix('_')?.parse().ok()?).filter(|(_, key)| key == name)
+                let mut iter = fields.iter().enumerate();
+                iter.find_map(named).or_else(|| {
+                    let index: usize = name.strip_prefix('_')?.parse().ok()?;
+                    (index < fields.len())
+                        .then(|| (index, format_ident!("_{}", index)))
+                        .filter(|(_, key)| key == name)
                 })
             }
         }
     }
 
     /// Makes the format string out of the doc comments.
-    fn docs(&self) -> Result<LitStr> {
+    fn docs(&self) -> LitStr {
         let mut text = String::new();
         let mut span = self.span;
         for attr in self.attrs.iter().filter(|attr| attr.path().is_ident("doc")) {
-            let Form::Value(Value::Lit(Lit::Str(literal))) = Attr::parse(attr)?.form else {
+            let Meta::NameValue(meta) = &attr.meta else {
+                continue;
+            };
+            let Expr::Lit(ExprLit {
+                lit: Lit::Str(literal),
+                ..
+            }) = &meta.value
+            else {
                 continue;
             };
             span = literal.span();
@@ -268,7 +299,7 @@ impl<'a> Item<'a> {
                 text.push(' ');
             }
         }
-        Ok(LitStr::new(&text.trim().replace(" \n", "\n"), span))
+        LitStr::new(&text.trim().replace(" \n", "\n"), span)
     }
 
     /// Makes the format string which prints `name` followed by the fields,
@@ -297,8 +328,8 @@ fn binding(index: usize) -> Ident {
     format_ident!("__amplify_field_{}", index, span = Span::mixed_site())
 }
 
-/// The formatter, which a field named `f` must not shadow.
-fn formatter() -> Ident { Ident::new("f", Span::mixed_site()) }
+/// The formatter, which a field or constant named `f` must not shadow.
+fn formatter() -> Ident { Ident::new("__amplify_f", Span::mixed_site()) }
 
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
     let (impl_generics, ty_generics, _) = input.generics.split_for_impl();

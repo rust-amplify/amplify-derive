@@ -13,7 +13,6 @@ mod no_implicit_prelude {
     pub struct Number(pub i64);
 
     #[derive(::amplify_derive::Wrapper, ::amplify_derive::WrapperMut, ::amplify_derive::From)]
-    #[amplify_crate(::amplify)]
     #[wrapper(FromHex, Deref, AsSlice, BorrowSlice, Index, RangeOps)]
     #[wrapper_mut(DerefMut, AsSliceMut, BorrowSliceMut, IndexMut, RangeMut)]
     pub struct Bytes(pub ::std::vec::Vec<u8>);
@@ -213,7 +212,39 @@ struct GenericBytes<T>(T);
 
 #[derive(Wrapper, From)]
 #[wrapper(FromHex)]
-struct GenericHex<T>(T);
+struct GenericHex<I>(I);
+
+mod hygiene {
+    use amplify_derive::{From, Wrapper, WrapperMut};
+
+    #[allow(dead_code)]
+    mod amplify {}
+
+    #[allow(non_upper_case_globals, dead_code)]
+    const inner: i32 = 0;
+    #[allow(non_upper_case_globals, dead_code)]
+    const wrapped: i32 = 0;
+    #[allow(non_upper_case_globals, dead_code)]
+    const s: &str = "";
+    #[allow(non_upper_case_globals, dead_code)]
+    const iter: u8 = 0;
+    #[allow(non_upper_case_globals, dead_code)]
+    const formatter: u8 = 0;
+    #[allow(non_upper_case_globals, dead_code)]
+    const index: usize = 0;
+    #[allow(non_upper_case_globals, dead_code)]
+    const rhs: i32 = 0;
+
+    #[derive(Wrapper, WrapperMut, From)]
+    #[wrapper(FromStr, Display, Debug, Add)]
+    #[wrapper_mut(AddAssign)]
+    pub struct CleanNum(pub i32);
+
+    #[derive(Wrapper, WrapperMut, From)]
+    #[wrapper(FromHex, Index)]
+    #[wrapper_mut(IndexMut)]
+    pub struct CleanBytes(pub Vec<u8>);
+}
 
 mod result_alias {
     #[allow(dead_code)]
@@ -474,4 +505,14 @@ fn derives_traits_for_generic_inner_types() {
         vec![Ok(0xab), Ok(0xcd)].into_iter(),
     );
     assert_eq!(hex.unwrap().0, vec![0xab, 0xcd]);
+
+    let mut clean_num = hygiene::CleanNum::from_str("5").unwrap();
+    clean_num += hygiene::CleanNum::from(2);
+    assert_eq!(format!("{}", clean_num + hygiene::CleanNum::from(1)), "8");
+    let mut clean_bytes = <hygiene::CleanBytes as amplify::hex::FromHex>::from_byte_iter(
+        vec![Ok(0x10), Ok(0x20)].into_iter(),
+    )
+    .unwrap();
+    clean_bytes[0] = 0x30;
+    assert_eq!(clean_bytes[0], 0x30);
 }

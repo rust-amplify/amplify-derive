@@ -17,17 +17,30 @@
 // License for the specific language governing permissions and limitations under
 // the License.
 
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{DeriveInput, Result};
+use syn::{DeriveInput, Result, Type, parse_quote};
+
+use crate::util::Bounds;
 
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let (impl_generics, ty_generics, _) = input.generics.split_for_impl();
     let ident_name = &input.ident;
+    let err = Ident::new("__amplify_err", Span::mixed_site());
+
+    let self_ty: Type = parse_quote!(Self);
+    let mut error_bounds = Bounds::new(&input.generics);
+    error_bounds.require(&self_ty, quote!(::core::fmt::Debug + ::core::fmt::Display));
+    let error_where = error_bounds.into_where_clause();
+
+    let target_ty: Type = parse_quote!(#ident_name #ty_generics);
+    let mut from_bounds = Bounds::new(&input.generics);
+    from_bounds.require(&target_ty, quote!(::core::fmt::Display));
+    let from_where = from_bounds.into_where_clause();
 
     Ok(quote! {
         #[automatically_derived]
-        impl #impl_generics ::core::error::Error for #ident_name #ty_generics #where_clause {
+        impl #impl_generics ::core::error::Error for #ident_name #ty_generics #error_where {
         }
 
         // `String` has no path which works both with `std` and without it,
@@ -36,9 +49,9 @@ pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
             extern crate alloc;
 
             #[automatically_derived]
-            impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for alloc::string::String #where_clause {
-                fn from(err: #ident_name #ty_generics) -> Self {
-                    alloc::string::ToString::to_string(&err)
+            impl #impl_generics ::core::convert::From<#ident_name #ty_generics> for alloc::string::String #from_where {
+                fn from(#err: #ident_name #ty_generics) -> Self {
+                    alloc::string::ToString::to_string(&#err)
                 }
             }
         };

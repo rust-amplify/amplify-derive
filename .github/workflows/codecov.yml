@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ master, develop ]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -13,29 +16,30 @@ jobs:
   codecov:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           components: llvm-tools-preview
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --locked
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
           RUSTDOCFLAGS: "-Cinstrument-coverage"
       - name: Test
-        run: cargo test --workspace --all-features --no-fail-fast
+        run: cargo test --workspace --all-features --no-fail-fast --locked
         env:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Cinstrument-coverage"
           RUSTDOCFLAGS: "-Cinstrument-coverage"
       - name: Install grcov
-        run: if [[ ! -e ~/.cargo/bin/grcov ]]; then cargo install grcov; fi
+        run: if [[ ! -e ~/.cargo/bin/grcov ]]; then cargo install grcov --version 0.10.8 --locked; fi
       - name: Generate coverage
         run: grcov . --binary-path target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage.lcov
           flags: rust

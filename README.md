@@ -55,8 +55,9 @@ Minimum supported Rust version (MSRV): 1.100.0. Rust edition: 2024.
     #[display("({x}, {y})")]
     struct Point { x: u32, y: u32 }
    ```
-4. Use of doc comments for descrition representation. In this case doc
-   comments may also contain formatting like in the case 3:
+4. Use of doc comments for description representation (`#[display(doc_comments)]`
+   or its alias `#[display(docs)]`). In this case doc comments may also contain
+   formatting like in the case 3:
    ```rust
     #[macro_use] extern crate amplify;
 
@@ -146,7 +147,9 @@ doc comments for generating error descriptions; with `#[derive(From)]` it
 may automatically implement transofrations from other error types.
 
 The macro implements `core::error::Error` and a conversion of the error into
-`String`. It works in `no_std` crates which have the `alloc` crate.
+`String`. It works in `no_std` crates which have the `alloc` crate, and adds
+`Debug` and `Display` bounds automatically for generic error types (`Error::source`
+is not generated automatically).
 
 ```rust
 #[derive(Debug, Display, Error)]
@@ -167,8 +170,12 @@ Implements `From` trait for the whole entity and/or its separate fields.
 Works well with `#[derive(Error)]` and, in many cases may require
 `Default` implementation (for details, pls see [Examples](#examples) below)
 
-Deriving `From` where there is nothing to convert from, or two conversions
-from the same type, is an error.
+Deriving `From` where there is nothing to convert from, where two conversions
+are from the same type, or where a multi-field union uses a type-level
+`#[from]` instead of a field-level one, is an error. Note that on a structure
+or variant with multiple named fields, a type-level or variant-level
+`#[from(Type)]` discards the converted value and fills fields from `Default`;
+place `#[from]` on the target field when converting into a specific field.
 
 ### Examples
 
@@ -249,7 +256,12 @@ it.
 
 Other traits, such as `PartialEq`, `Eq`, `PartialOrd`, `Ord`,
 `Hash` can be implemented using standard `#[derive]` attribute in the
-same manner as `Default`, `Debug` and `From`
+same manner as `Default`, `Debug` and `From`. On multi-field wrappers with
+auxiliary fields that affect derived `Eq`, `Ord`, or `Hash`, pass
+`#[wrapper(NoRefs, AsRef)]` (or implement comparisons and hashing on the wrapped
+field only) so `Borrow<Inner>` stays consistent; binary operators keep `self`'s
+auxiliary fields (`..self`). Use `#[amplify_crate(path)]` to override the path
+to `amplify` (defaults to `::amplify`).
 
 ### Example
 
@@ -276,10 +288,13 @@ assert_eq!(w.as_inner(), &HashMap::<usize, Vec<u8>>::default());
 ## Getters derive
 
 Creates getter methods matching field names for all fields within a
-structure (including public and private fields). Getters return reference
-types, unless `#[getter(...)]` on the structure or on a field asks for
-something else: `as_copy`, `as_clone`, `as_ref`, `as_mut`, `all`, `skip`,
-`prefix = "..."` and `base_name = "..."`.
+structure (including public and private fields). Getters are `pub` by default
+regardless of field visibility and return reference types, unless
+`#[getter(...)]` on the structure or on a field asks for something else:
+`as_copy`, `as_clone`, `as_ref`, `as_mut`, `all`, visibility flags `crate` /
+`self` / `super` (for `pub(crate)`, `pub(self)`, and `pub(super)`), `skip`,
+`prefix = "..."` (or bare `prefix` to clear a type-level prefix), and
+`base_name = "..."` (combined with the effective `prefix`).
 
 ### Example
 
@@ -317,8 +332,9 @@ assert_eq!(two.list(), &vec![1]);
 Trait `amplify::AsAny` allows simple conversion of any type into a generic
 "thick" pointer `&dyn Any` (see `::core::any::Any`), that can be later
 converted back to the original type with a graceful failing for all other
-conversions. `AsAny` derive macro allows to implement this trait for
-arbitrary time without much hussle:
+conversions. `AsAny` derive macro implements this trait (adding `Self: 'static`
+for generic types and honoring `#[amplify_crate(path)]`, which defaults to
+`::amplify`):
 
 ### Example
 

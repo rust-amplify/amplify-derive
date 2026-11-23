@@ -19,7 +19,9 @@ struct Shout(&'static str);
 
 #[derive(Display)]
 #[display("[{0}] {1:?} {width:>2$}")]
-struct Generic<T, U> {
+struct Generic<T, U>
+where T: ::core::borrow::Borrow<str>
+{
     #[display(separator = ", ")]
     items: Vec<T>,
     other: U,

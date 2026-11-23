@@ -18,15 +18,19 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{DeriveInput, Result};
+use syn::{DeriveInput, Result, Type, parse_quote};
+
+use crate::util::Bounds;
 
 pub(crate) fn inner(input: DeriveInput) -> Result<TokenStream2> {
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let (impl_generics, ty_generics, _) = input.generics.split_for_impl();
     let ident_name = &input.ident;
-    let amplify_crate = match crate::util::explicit_amplify_crate(&input)? {
-        Some(path) => quote! { #path },
-        None => quote! { ::amplify },
-    };
+    let amplify_crate = crate::util::amplify_crate(&input)?;
+
+    let self_ty: Type = parse_quote!(Self);
+    let mut bounds = Bounds::new(&input.generics);
+    bounds.require(&self_ty, quote!('static));
+    let where_clause = bounds.into_where_clause();
 
     Ok(quote! {
         #[automatically_derived]

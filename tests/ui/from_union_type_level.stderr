@@ -1,0 +1,5 @@
+error: type-level `#[from]` is not allowed on multi-field unions; specify `#[from]` right ahead of the target field
+ --> tests/ui/from_union_type_level.rs:4:3
+  |
+4 | #[from(u32)]
+  |   ^^^^

@@ -14,9 +14,11 @@ struct One<T> {
 }
 
 #[derive(Getters)]
-#[getter(as_clone)]
+#[getter(as_clone, crate)]
 struct Two {
     name: String,
-    #[getter(as_ref = "_borrowed", as_mut = "_changed")]
+    #[getter(self, as_ref = "_borrowed", as_mut = "_changed")]
     list: Vec<u8>,
+    #[getter(super, as_copy)]
+    count: u8,
 }

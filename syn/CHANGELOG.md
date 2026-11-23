@@ -10,8 +10,9 @@ Change Log
   token spans.
 - The attribute rules are rebuilt on that grammar:
   - `AttrReq` is declared with a builder (`arg`, `mandatory`, `conflict`,
-    `unnamed`, `name_value`) and reads attributes itself: once per item
-    (`single`), merged over all occurrences (`merged`) or occurrence by
+    `unnamed`, `name_value`, including standalone `name_value` without
+    `unnamed` and keyword argument names) and reads attributes itself: once per
+    item (`single`), merged over all occurrences (`merged`) or occurrence by
     occurrence (`each`).
   - `ArgValueReq` keeps `Prohibited`, `Optional` and `Required` with an
     optional default. It no longer decides whether the argument must be given;

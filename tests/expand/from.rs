@@ -15,8 +15,8 @@ struct Named {
 }
 
 #[derive(From)]
-#[from(i8)]
-struct Tuple<T>(u8, #[from] T);
+#[from(u8)]
+struct Tuple<T>(u16, #[from] Option<T>);
 
 #[derive(From)]
 enum Error {

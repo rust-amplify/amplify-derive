@@ -109,8 +109,9 @@ use syn::{DeriveInput, parse_macro_input};
 ///     assert_eq!(format!("{}", Point { x: 0, y: 1 }), "(0, 1)");
 ///     assert_eq!(format!("{:#}", Point { x: 0, y: 1 }), "0:1");
 ///    ```
-/// 5. Use of doc comments for descrition representation. In this case doc
-///    comments may also contain formatting like in the case 3:
+/// 5. Use of doc comments for descrition representation (`#[display(doc_comments)]`
+///    or its alias `#[display(docs)]`). In this case doc comments may also
+///    contain formatting like in the case 3:
 ///    ```
 ///     # #[macro_use] extern crate amplify_derive;
 ///     #[macro_use] extern crate amplify;
@@ -340,9 +341,11 @@ pub fn derive_display(input: TokenStream) -> TokenStream {
 /// doc comments for generating error descriptions; with `#[derive(From)]` it
 /// may automatically implement transofrations from other error types.
 ///
-/// The macro implements [`core::error::Error`] and a conversion of the error
-/// into a [`String`]. It works in `no_std` crates; the conversion needs the
-/// `alloc` crate to be available.
+/// The macro implements [`core::error::Error`] and `From<Error> for String`.
+/// It works in `no_std` crates that have the `alloc` crate available. When
+/// derived on a generic type, `Debug` and `Display` bounds are added
+/// automatically. Note that [`core::error::Error::source`] is not generated
+/// automatically.
 ///
 /// # Example
 ///
@@ -379,16 +382,22 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
 /// - `#[from]` on a field converts from the type of the field, and
 ///   `#[from(Type)]` from the given type, which must implement `Into` for the
 ///   type of the field;
-/// - `#[from(Type)]` on a structure, a union or a variant converts from the
-///   given type. The value goes into the only field, or into the first field
-///   of a tuple; a unit, or an entity with several named fields, ignores it.
-///   With a single field the type may be left out, as in `#[from]`;
+/// - `#[from(Type)]` on a structure, a single-field union or a variant
+///   converts from the given type. The value goes into the only field, or into
+///   the first field of a tuple; a unit, or an entity with several named
+///   fields, ignores it. Multi-field unions must place `#[from]` on the target
+///   field instead. With a single field the type may be left out, as in
+///   `#[from]`;
 /// - a structure or a union with a single field converts from the type of that
 ///   field without any attribute.
 ///
 /// The fields which do not take the value are filled with their defaults. A
 /// structure with named fields takes them from its own [`Default`]
 /// implementation, and everything else from the `Default` of each field.
+/// Because a type-level or variant-level `#[from(Type)]` on an entity with
+/// multiple named fields discards the converted value and uses defaults,
+/// prefer field-level `#[from]` whenever a specific field should receive the
+/// value (especially if fields may be added later).
 ///
 /// # Errors
 ///
@@ -471,7 +480,9 @@ pub fn derive_from(input: TokenStream) -> TokenStream {
 /// generic "thick" pointer `&dyn Any` (see [`::core::any::Any`]), that can be
 /// later converted back to the original type with a graceful failing for all
 /// other conversions. `AsAny` derive macro allows to implement this trait for
-/// arbitrary time without much hussle:
+/// arbitrary types without much hassle. Generic types automatically receive a
+/// `Self: 'static` bound, and `#[amplify_crate(path)]` can override the path
+/// to the `amplify` crate (defaults to `::amplify`).
 ///
 /// # Example
 ///
@@ -560,19 +571,37 @@ pub fn derive_as_any(input: TokenStream) -> TokenStream {
 ///
 /// **Defaults to**: `as_ref`
 ///
+/// ### Visibility arguments
+/// By default, every generated getter has `pub` visibility—even when the
+/// underlying struct field is private or module-restricted. To restrict getter
+/// visibility (preserving encapsulation on `pub` structs), pass one of:
+/// - `#[getter(crate)]`: generates `pub(crate) fn`
+/// - `#[getter(self)]`: generates `pub(self) fn`
+/// - `#[getter(super)]`: generates `pub(super) fn`
+///
+/// These flags are mutually exclusive within an attribute level; a field-level
+/// visibility flag overrides a type-level one. Use `#[getter(skip)]` on fields
+/// that must have no accessor at all.
+///
+/// **Can be used**: at type and field level
+///
+/// **Defaults to**: `pub`
+///
 /// ### `#[getter(skip)]`
 /// Skips derivation of a all gettter methods for this field
 ///
 /// ### `#[getter(prefix = "...")]`
-/// Defines prefix added to all derived getter method names.
+/// Defines prefix added to all derived getter method names. A bare
+/// `#[getter(prefix)]` sets an empty prefix (`""`), which on a field clears a
+/// type-level prefix.
 ///
 /// **Defaults to**: none (no prefix added)
 ///
 /// **Can be used**: at type and field level
 ///
 /// ### `#[getter(base_name = "...")]`
-/// Defines base name for the getter method. Base name is prefixed with prefix
-/// from a type-level getter `prefix` attribute (if the one is specified) and
+/// Defines base name for the getter method. Base name is prefixed with the
+/// effective `prefix` (field-level if specified, otherwise type-level) and
 /// suffix, which is method-specific (see `methods` argument description above).
 ///
 /// **Defaults to**: field name
@@ -813,7 +842,20 @@ pub fn derive_getters(input: TokenStream) -> TokenStream {
 ///
 /// Other traits, such as [`PartialEq`], [`Eq`], [`PartialOrd`], [`Ord`],
 /// [`Hash`] can be implemented using standard `#[derive]` attribute in the
-/// same manner as [`Default`], [`Debug`] and [`From`]
+/// same manner as [`Default`], [`Debug`] and [`From`].
+///
+/// On multi-field wrappers, note two invariants:
+/// - `#[derive(Wrapper)]` implements [`core::borrow::Borrow`]`<Inner>` over
+///   only the wrapped field unless `NoRefs` is specified. If non-zero-sized
+///   auxiliary fields participate in derived `Eq`, `Ord`, or `Hash`, `Borrow`
+///   would disagree with them; either pass `#[wrapper(NoRefs, AsRef)]` or
+///   implement equality, ordering, and hashing over the wrapped field alone.
+/// - Binary operators (`Add`, `BitAnd`, etc.) compute the wrapped field from
+///   `self` and `rhs` and copy the remaining fields from `self` (`..self`),
+///   discarding `rhs`'s auxiliary fields.
+///
+/// Use `#[amplify_crate(path)]` to customize the path to the `amplify` crate
+/// (defaults to `::amplify`).
 ///
 /// # Example
 ///
@@ -871,7 +913,8 @@ pub fn derive_wrapper(input: TokenStream) -> TokenStream {
 
 /// Derives [`WrapperMut`] and allows deriving other traits accessing the
 /// wrapped type which require mutable access to the inner type. Requires that
-/// the type already implements `amplify::Wrapper`.
+/// the type already implements `amplify::Wrapper`. Use `#[amplify_crate(path)]`
+/// to customize the path to the `amplify` crate (defaults to `::amplify`).
 ///
 /// Supports automatic implementation of the following traits:
 /// * `amplify::WrapperMut`

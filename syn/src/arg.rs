@@ -17,8 +17,9 @@ use std::fmt::Display;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote};
+use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
-use syn::{Error, Expr, Ident, Lit, LitStr, Path, Result, Token, Type, parse2};
+use syn::{Error, Expr, Ident, Lit, LitBool, LitStr, Path, Result, Token, Type, parse2};
 
 /// One argument in an attribute list.
 #[derive(Clone, Debug)]
@@ -49,8 +50,12 @@ impl Arg {
 
 impl Parse for Arg {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        if input.peek(Ident) && input.peek2(Token![=]) {
-            let name = input.parse()?;
+        if input.peek(Ident::peek_any) &&
+            !input.peek(LitBool) &&
+            !input.peek(Token![_]) &&
+            input.peek2(Token![=])
+        {
+            let name = input.call(Ident::parse_any)?;
             let eq_token = input.parse()?;
             let value = input.parse()?;
             return Ok(Self::Named(NamedArg {
@@ -385,5 +390,21 @@ mod tests {
         assert_eq!(quote::quote!(#ty).to_string(), "[u8 ; 4]");
         let lit: Lit = syn::parse_str("\"hello\"").expect("literal parses");
         assert_eq!(quote::quote!(#lit).to_string(), "\"hello\"");
+    }
+
+    #[test]
+    fn parses_keyword_named_and_path_arguments() {
+        let attr = Attr::parse(&attribute(
+            r#"#[attr(type = "kind", ref = true, crate = "local", crate, self, super)] struct Item;"#,
+        ))
+        .expect("keyword arguments parse");
+        let args = attr.args().collect::<Vec<_>>();
+        assert_eq!(args.len(), 6);
+        assert!(matches!(args[0], Arg::Named(named) if named.name == "type"));
+        assert!(matches!(args[1], Arg::Named(named) if named.name == "ref"));
+        assert!(matches!(args[2], Arg::Named(named) if named.name == "crate"));
+        assert!(args[3].as_ident().is_some_and(|ident| ident == "crate"));
+        assert!(args[4].as_ident().is_some_and(|ident| ident == "self"));
+        assert!(args[5].as_ident().is_some_and(|ident| ident == "super"));
     }
 }

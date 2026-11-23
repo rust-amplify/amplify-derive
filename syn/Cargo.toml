@@ -2,7 +2,7 @@
 name = "amplify_syn"
 version = "3.0.0"
 description = "Amplifying syn capabilities: helper functions for creating proc macro libraries"
-authors = ["Dr. Maxim Orlovsky <orlovsky@pandoracore.com>"]
+authors = ["Dr. Maxim Orlovsky <dr@orlovsky.ch>"]
 keywords = ["generics", "derive", "wrap", "patterns"]
 categories = ["development-tools::procedural-macro-helpers", "rust-patterns"]
 repository.workspace = true

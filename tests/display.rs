@@ -268,6 +268,54 @@ struct Distance {
     value: u8,
 }
 
+#[derive(Display)]
+#[display(doc_comments)]
+#[doc(alias("alpha", "beta"))]
+enum DocMetaAttributes {
+    /// First variant
+    #[doc(alias("first", "one"))]
+    First,
+    /// Second {0}
+    #[doc(hidden)]
+    Second(u8),
+}
+
+/// Documented with the `docs` alias: {0}
+#[derive(Display)]
+#[display(docs)]
+struct DocsAlias(u8);
+
+#[derive(Display)]
+#[display("{0} {_0}")]
+struct SamePositionalSlot(u8);
+
+#[derive(Display)]
+#[display("{0} {_0}")]
+struct UnderscoreNamedField {
+    x: u8,
+    _0: u8,
+}
+
+mod concrete_mod {
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    pub struct T(pub u8);
+}
+
+trait HasAssoc {
+    type T;
+}
+
+struct Concrete;
+
+impl HasAssoc for Concrete {
+    type T = u8;
+}
+
+#[derive(Display)]
+#[display("{0:?} {1} {2:p}")]
+struct TrickyGenerics<T>(concrete_mod::T, <Concrete as HasAssoc>::T, for<'a> fn(&'a T));
+
 #[test]
 fn formats_structs_tuples_units_and_variants() {
     let point = Point { x: 2, y: 7 };
@@ -361,6 +409,11 @@ fn placeholders_name_fields_by_name_or_position_and_other_items_in_scope() {
         }),
         "1 1km 2"
     );
+    assert_eq!(format!("{}", SamePositionalSlot(9)), "9 9");
+    assert_eq!(format!("{}", UnderscoreNamedField { x: 10, _0: 20 }), "10 20");
+    assert_eq!(format!("{}", DocMetaAttributes::First), "First variant");
+    assert_eq!(format!("{}", DocMetaAttributes::Second(2)), "Second 2");
+    assert_eq!(format!("{}", DocsAlias(5)), "Documented with the `docs` alias: 5");
 }
 
 #[test]
@@ -374,6 +427,10 @@ fn generic_fields_get_the_bounds_of_their_placeholders() {
     };
     assert_eq!(format!("{coded}"), "04: b");
     assert_eq!(format!("{}", Unsized::<str>("a".into())), "a");
+
+    fn ignore_ref(_: &()) {}
+    let tricky = TrickyGenerics::<()>(concrete_mod::T(3), 4, ignore_ref);
+    assert!(format!("{tricky}").starts_with("T(3) 4 0x"));
 }
 
 #[test]
